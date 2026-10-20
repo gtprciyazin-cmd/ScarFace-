@@ -79,7 +79,10 @@ struct OnSendToServer : VariantPacket<PacketId::OnSendToServer> {
 };
 
 struct OnSuperMainStartAcceptLogonHrdxs47254722215a : VariantPacket<PacketId::OnSuperMainStartAcceptLogonHrdxs47254722215a> {
-    int32_t item_hash;
+    // Proton hash of the server's items.dat; sent as a signed or an unsigned
+    // variant depending on the server, so both are accepted and kept on write.
+    uint32_t item_hash;
+    bool item_hash_signed{ true };
     std::string u;
     std::string uu;
     std::string uuu;
@@ -95,11 +98,23 @@ struct OnSuperMainStartAcceptLogonHrdxs47254722215a : VariantPacket<PacketId::On
         variant = var->variant;
         game_packet = var->game_packet;
 
-        if (variant.size() < 4) {
+        if (variant.size() < 6) {
             return false;
         }
 
-        item_hash = variant.get<int32_t>(1);
+        const auto& hash_var{ variant.get_variants()[1] };
+        if (const auto* hash{ std::get_if<int32_t>(&hash_var) }) {
+            item_hash = static_cast<uint32_t>(*hash);
+            item_hash_signed = true;
+        }
+        else if (const auto* uhash{ std::get_if<uint32_t>(&hash_var) }) {
+            item_hash = *uhash;
+            item_hash_signed = false;
+        }
+        else {
+            return false;
+        }
+
         u = variant.get<std::string>(2);
         uu = variant.get<std::string>(3);
         uuu = variant.get<std::string>(4);
@@ -110,14 +125,17 @@ struct OnSuperMainStartAcceptLogonHrdxs47254722215a : VariantPacket<PacketId::On
 
     Payload write() override
     {
-        const PacketVariant variant{
-            "OnSuperMainStartAcceptLogonHrdxs47254722215a",
+        PacketVariant variant{
+            std::string{ "OnSuperMainStartAcceptLogonHrdxs47254722215a" },
             item_hash,
             u,
             uu,
             uuu,
             player_tribute_hash
         };
+        if (item_hash_signed) {
+            variant.set(1, static_cast<int32_t>(item_hash));
+        }
         return VariantPayload{ game_packet, variant };
     }
 };

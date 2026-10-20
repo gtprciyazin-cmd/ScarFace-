@@ -480,5 +480,12 @@ struct ItemInfo
     std::string info;
     std::uint16_t ingredients[2];
     std::uint8_t __unk_9;
+
+    // items.dat v25+. Names follow the community parsers; the meaning of these
+    // is not confirmed.
+    std::string hit_sound_fx;
+    std::uint32_t hit_sound_fx_hash;
+    std::uint8_t __unk_10; // v26
+    std::string __unk_11; // v27
 };
 }

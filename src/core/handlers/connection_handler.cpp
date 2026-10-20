@@ -1,9 +1,61 @@
 #include "connection_handler.hpp"
 
+#include <cstdlib>
+#include <fstream>
+#include <iterator>
+
 #include "../../packet/game/server.hpp"
 #include "../../packet/game/item_database.hpp"
 
 namespace core::handlers {
+namespace {
+// Where an items.dat matching the server can be found: our own copy, saved
+// whenever the server sends the file, and the Growtopia client's cache.
+[[nodiscard]] std::vector<std::string> items_dat_candidates()
+{
+    std::vector<std::string> paths{ "resources/items.dat" };
+#ifdef _WIN32
+    if (const char* local_app_data{ std::getenv("LOCALAPPDATA") }; local_app_data && *local_app_data) {
+        paths.emplace_back(std::string{ local_app_data } + "\\Growtopia\\cache\\items.dat");
+    }
+#endif
+    return paths;
+}
+
+[[nodiscard]] bool load_items_dat_if_matches(const std::string& path, const std::uint32_t server_hash)
+{
+    std::ifstream in{ path, std::ios::binary };
+    if (!in) {
+        return false;
+    }
+
+    const std::vector<char> data{ std::istreambuf_iterator<char>{ in }, std::istreambuf_iterator<char>{} };
+    if (data.empty()) {
+        return false;
+    }
+
+    const auto hash{ utils::hash::proton(data.data(), data.size()) };
+    if (hash != server_hash) {
+        spdlog::info("{} is not the server's items.dat (hash {}, server {})", path, hash, server_hash);
+        return false;
+    }
+
+    auto& item_database{ item::ItemDatabase::instance() };
+    if (!item_database.parse({ reinterpret_cast<const std::byte*>(data.data()), data.size() })) {
+        spdlog::warn("Failed to parse {}", path);
+        return false;
+    }
+
+    spdlog::info(
+        "Loaded items.dat from {} (version {}, {} items)",
+        path,
+        item_database.get_version(),
+        item_database.get_count()
+    );
+    return true;
+}
+}
+
 ConnectionHandler::ConnectionHandler(
     event::Dispatcher& dispatcher,
     network::Client& client,
@@ -163,11 +215,7 @@ void ConnectionHandler::setup_send_item_database_data_handler()
 
             const auto parsed{ item::ItemDatabase::instance().parse(pkt->items_dat) };
             if (!parsed) {
-                spdlog::error(
-                    "Failed to parse items.dat (version {}, count {})",
-                    item::ItemDatabase::instance().get_version(),
-                    item::ItemDatabase::instance().get_count()
-                );
+                spdlog::error("Failed to parse the items.dat sent by the server ({} bytes)", pkt->items_dat.size());
                 return;
             }
 
@@ -212,26 +260,24 @@ void ConnectionHandler::setup_on_super_main_start_handler()
                 return;
             }
 
-            // ReSharper disable once CppVariableCanBeMadeConstexpr
-            const std::string cache_path{ "resources/items.dat" };
-            const auto server_hash{ static_cast<std::uint32_t>(pkt->item_hash) };
-            const auto cached_hash{ (utils::hash::proton_file(cache_path)) };
-
-            if (server_hash != cached_hash) {
-                spdlog::info("Hash mismatch: server={}, cached={}", server_hash, cached_hash);
-                return;
+            const auto server_hash{ pkt->item_hash };
+            const auto& item_database{ item::ItemDatabase::instance() };
+            if (!item_database.empty() && item_database.get_hash() == server_hash) {
+                return; // Already loaded, e.g. when switching sub-servers.
             }
 
-            spdlog::info("Hash matches, loading cached items.dat (hash: {})", cached_hash);
-            if (!item::ItemDatabase::instance().load_from_file(cache_path)) {
-                spdlog::warn("Failed to load cached items.dat");
-                return;
+            // The server only sends items.dat when the client's copy is out of
+            // date, so with an up-to-date client it never arrives. Read the
+            // same file from disk instead when its hash matches the server's.
+            for (const auto& path : items_dat_candidates()) {
+                if (load_items_dat_if_matches(path, server_hash)) {
+                    return;
+                }
             }
 
             spdlog::info(
-                "Successfully loaded cached items.dat (version {}, count {})",
-                item::ItemDatabase::instance().get_version(),
-                item::ItemDatabase::instance().get_count()
+                "No local items.dat matches the server's (hash {}); it is loaded when the server sends it",
+                server_hash
             );
         })
     );

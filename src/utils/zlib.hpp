@@ -1,4 +1,5 @@
 #pragma once
+#include <algorithm>
 #include <cstdint>
 #include <span>
 #include <vector>
@@ -30,12 +31,13 @@ namespace utils {
         return false;
     }
 
-    if (expected_size > 0) {
-        decompressed_data.resize(expected_size);
-    }
-    else {
-        decompressed_data.clear();
-    }
+    // Only reserve: resize() used to pre-fill expected_size zero bytes and the
+    // inflated data was appended after them, so the output came out twice as
+    // long, failed the size check below and items.dat was always thrown away.
+    // The reservation is capped because expected_size comes from the wire.
+    constexpr std::uint32_t max_reserve{ 64u * 1024u * 1024u };
+    decompressed_data.clear();
+    decompressed_data.reserve(std::min(expected_size, max_reserve));
 
     std::vector<std::byte> temp_buffer(8192);
     int ret{};
@@ -54,6 +56,12 @@ namespace utils {
 
         const auto have{ temp_buffer.size() - stream.avail_out };
         decompressed_data.insert(decompressed_data.end(), temp_buffer.begin(), temp_buffer.begin() + have);
+
+        if (expected_size > 0 && decompressed_data.size() > expected_size) {
+            spdlog::error("Decompressed data exceeds expected size ({})", expected_size);
+            inflateEnd(&stream);
+            return false;
+        }
     } while (stream.avail_out == 0);
 
     inflateEnd(&stream);

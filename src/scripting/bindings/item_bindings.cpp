@@ -14,8 +14,14 @@ void ItemBindings::bind_item_database(sol::state& lua)
         "get_version", &item::ItemDatabase::get_version,
         "get_count", &item::ItemDatabase::get_count,
         "empty", &item::ItemDatabase::empty,
-        "get_item", [](const item::ItemDatabase& db, std::uint32_t id) -> const item::ItemInfo* {
-            return db.get_item(id);
+        // Returns a copy: a pointer into the database would dangle once items.dat
+        // is reloaded (every login / sub-server switch) while a script keeps it.
+        "get_item", [](const item::ItemDatabase& db, std::uint32_t id) -> sol::optional<item::ItemInfo> {
+            if (const auto* info{ db.get_item(id) }) {
+                return *info;
+            }
+
+            return sol::nullopt;
         }
     );
 
