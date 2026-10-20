@@ -93,7 +93,7 @@ struct Deco {
 };
 
 struct SewingMachine {
-    std::uint32_t unk;
+    std::vector<std::uint32_t> items;
 };
 
 struct CountryFlag {
@@ -195,7 +195,10 @@ public:
 
     ~TileExtra() = default;
 
-    void serialize(utils::ByteStream<>& bs, std::uint16_t version, std::uint16_t foreground, std::uint16_t background);
+    // Returns false for an extra type whose layout is unknown or for truncated
+    // data; the stream is then out of sync and the rest of the world must not
+    // be parsed from it.
+    [[nodiscard]] bool serialize(utils::ByteStream<>& bs, std::uint16_t version, std::uint16_t foreground, std::uint16_t background);
 
 public:
     [[nodiscard]] Type get_type() const { return type_; }

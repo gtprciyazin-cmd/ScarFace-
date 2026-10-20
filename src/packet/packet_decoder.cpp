@@ -34,8 +34,14 @@ namespace packet {
     }
     case NET_MESSAGE_GENERIC_TEXT:
     case NET_MESSAGE_GAME_MESSAGE: {
-        std::string message{};
-        stream.read(message, static_cast<uint16_t>(stream.get_size() - sizeof(NetMessageType) - 1));
+        // The text runs to the end of the packet, usually NUL-terminated.
+        std::string message{
+            reinterpret_cast<const char*>(data.data() + sizeof(NetMessageType)),
+            data.size() - sizeof(NetMessageType)
+        };
+        if (!message.empty() && message.back() == '\0') {
+            message.pop_back();
+        }
 
         utils::TextParse parser{ message };
         if (log_config.print_message) {
@@ -57,7 +63,9 @@ namespace packet {
     }
     case NET_MESSAGE_GAME_PACKET: {
         GameUpdatePacket game_pkt{};
-        stream.read(game_pkt);
+        if (!stream.read(game_pkt)) {
+            return std::nullopt;
+        }
 
         const size_t extra_size = static_cast<size_t>(
              game_pkt.data_size > 0

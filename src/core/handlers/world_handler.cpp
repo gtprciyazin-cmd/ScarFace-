@@ -139,7 +139,7 @@ void WorldHandler::setup_send_tile_update_data_handler()
             world::Tile tile{};
 
             utils::ByteStream<> bs{ pkt->extra.data(), pkt->extra.size() };
-            tile.serialize(bs, world.get_version());
+            std::ignore = tile.serialize(bs, world.get_version());
 
             // Update tile in map if coordinates are available in game_packet
             // Note: SendTileUpdateData typically doesn't include coords in the packet itself

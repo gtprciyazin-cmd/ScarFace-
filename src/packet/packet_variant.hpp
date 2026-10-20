@@ -144,9 +144,14 @@ public:
                 byte_stream.read(value);
                 variants_.emplace_back(value);
             }
+            else {
+                // The size of an unknown type is unknown, so everything after
+                // it would be misread.
+                return false;
+            }
         }
 
-        return true;
+        return !byte_stream.failed();
     }
 
     template<typename T = std::string>

@@ -21,3 +21,4 @@ CMakeSettings.json
 
 # macOS system files
 .DS_Store
+/build-*

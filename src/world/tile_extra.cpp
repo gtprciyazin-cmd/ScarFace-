@@ -64,15 +64,15 @@ Dice serialize_dice(utils::ByteStream<>& bs) {
     return dice;
 }
 
-Provider serialize_provider(utils::ByteStream<>& bs, std::uint16_t foreground, std::uint16_t version) {
-    Provider provider;
+Provider serialize_provider(utils::ByteStream<>& bs, std::uint16_t foreground) {
+    Provider provider{};
     bs.read(provider.unk);
 
-    if (foreground != 5318 && (foreground != 10656 || version < 17)) {
-        return provider;
+    // Well of Love and Winterfest Calendar 2017 carry 4 more bytes.
+    if (foreground == 10656 || foreground == 5318) {
+        bs.read(provider.unk2);
     }
 
-    bs.read(provider.unk2);
     return provider;
 }
 
@@ -94,12 +94,6 @@ BunnyEgg serialize_bunny_egg(utils::ByteStream<>& bs) {
     BunnyEgg bunny_egg;
     bs.read(bunny_egg.unk);
     return bunny_egg;
-}
-
-GameGen serialize_game_gen(utils::ByteStream<>& bs) {
-    GameGen game_gen;
-    bs.read(game_gen.unk);
-    return game_gen;
 }
 
 Xenonite serialize_xenonite(utils::ByteStream<>& bs) {
@@ -157,8 +151,13 @@ Deco serialize_deco(utils::ByteStream<>& bs) {
 }
 
 SewingMachine serialize_sewing_machine(utils::ByteStream<>& bs) {
-    SewingMachine sewing_machine;
-    bs.read(sewing_machine.unk);
+    SewingMachine sewing_machine{};
+    std::uint32_t count{};
+    bs.read(count);
+    sewing_machine.items.resize(clamp_u32_count(bs, count));
+    for (auto& item : sewing_machine.items) {
+        bs.read(item);
+    }
     return sewing_machine;
 }
 
@@ -203,202 +202,192 @@ GeigerCharger serialize_geiger_charger(utils::ByteStream<>& bs) {
     return geiger_charger;
 }
 
-// Handle unknown tile types by skipping appropriate number of bytes
-void handle_unknown_type(utils::ByteStream<>& bs, std::uint8_t type_u8) {
-    switch (type_u8) {
-        case 14: {
-            std::string tmp;
-            bs.read(tmp);
-        }
-        bs.skip(23);
-        break;
-        case 19:
-            bs.skip(18);
-            break;
-        case 27:
-            bs.skip(4);
-            break;
-        case 30:
-            bs.skip(5);
-            break;
-        case 35:
-            bs.skip(4);
-            {
-                std::string tmp;
-                bs.read(tmp);
-            }
-            break;
-        case 39:
-            bs.skip(4);
-            break;
-        case 42:
-            bs.skip(21);
-            break;
-        case 43:
-            bs.skip(16);
-            break;
-        case 48: {
-            std::string tmp;
-            bs.read(tmp);
-        }
-        bs.skip(26);
-        break;
-        case 49:
-            bs.skip(9);
-            break;
-        case 55: {
-            std::uint32_t count{};
-            bs.read(count);
-            bs.skip(static_cast<std::size_t>(count) * 4);
-        }
-        bs.skip(16);
-        break;
-        case 56: {
-            std::string tmp;
-            bs.read(tmp);
-        }
-        bs.skip(4);
-        break;
-        case 58:
-            break;
-        case 61:
-            bs.skip(35);
-            break;
-        case 62:
-            bs.skip(14);
-            break;
-        case 63: {
-            std::uint32_t count{};
-            bs.read(count);
-            bs.skip(static_cast<std::size_t>(count) * 15);
-        }
-        bs.skip(8);
-        break;
-        case 65:
-            bs.skip(17);
-            break;
-        case 66:
-            bs.skip(1);
-            break;
-        case 69:
-            bs.skip(16);
-            break;
-        case 71:
-            bs.skip(44);
-            break;
-        case 72:
-            bs.skip(12);
-            break;
-        case 73:
-            bs.skip(4);
-            break;
-        case 74:
-            break;
-        case 75:
-            for (std::uint32_t i = 0; i < 3; i++) {
-                bs.skip(104);
-            }
-            break;
-        case 77:
-            bs.skip(4);
-            {
-                std::uint32_t count{};
-                bs.read(count);
-                bs.skip(static_cast<std::size_t>(count) * 4);
-            }
-            break;
-        case 81:
-            bs.skip(8);
-            break;
-        default:
-            break;
-    }
+void skip_string(utils::ByteStream<>& bs)
+{
+    std::uint16_t length{};
+    bs.read(length);
+    bs.skip(length);
+}
+
+// Skips a u32 count followed by count entries of entry_size bytes.
+template <typename CountType = std::uint32_t>
+void skip_list(utils::ByteStream<>& bs, const std::size_t entry_size)
+{
+    CountType count{};
+    bs.read(count);
+    bs.skip(static_cast<std::size_t>(count) * entry_size);
 }
 }
 
-void TileExtra::serialize(utils::ByteStream<>& bs, std::uint16_t version, std::uint16_t foreground, std::uint16_t background) {
+// Layouts follow the live parsers of CLOEI/Mori (Apr 2026) and
+// badewen/Growtopia-Things, which agree on every type handled here.
+bool TileExtra::serialize(utils::ByteStream<>& bs, std::uint16_t version, std::uint16_t foreground, std::uint16_t background) {
     std::uint8_t type_val{};
     if (!bs.read(type_val)) {
-        return;
+        return false;
     }
 
     type_ = static_cast<Type>(type_val);
 
-    switch (type_) {
-        case Type::Door:
-            data_ = serialize_door(bs);
-            break;
-        case Type::Sign:
-            data_ = serialize_sign(bs);
-            break;
-        case Type::Lock:
-            data_ = serialize_lock(bs, foreground);
-            break;
-        case Type::Seed:
-            data_ = serialize_seed(bs);
-            break;
-        case Type::Dice:
-            data_ = serialize_dice(bs);
-            break;
-        case Type::Provider:
-            data_ = serialize_provider(bs, foreground, version);
-            break;
-        case Type::Achievement:
-            data_ = serialize_achievement(bs);
-            break;
-        case Type::HeartMonitor:
-            data_ = serialize_heart_monitor(bs);
-            break;
-        case Type::BunnyEgg:
-            data_ = serialize_bunny_egg(bs);
-            break;
-        case Type::GameGen:
-            data_ = serialize_game_gen(bs);
-            break;
-        case Type::Xenonite:
-            data_ = serialize_xenonite(bs);
-            break;
-        case Type::Crystal:
-            data_ = serialize_crystal(bs);
-            break;
-        case Type::Burglar:
-            data_ = serialize_burglar(bs);
-            break;
-        case Type::DisplayBlock:
-            data_ = serialize_display_block(bs);
-            break;
-        case Type::Vending:
-            data_ = serialize_vending(bs);
-            break;
-        case Type::Solar:
-            data_ = serialize_solar(bs);
-            break;
-        case Type::Deco:
-            data_ = serialize_deco(bs);
-            break;
-        case Type::SewingMachine:
-            data_ = serialize_sewing_machine(bs);
-            break;
-        case Type::CountryFlag:
+    switch (type_val) {
+    case 1: data_ = serialize_door(bs); break;
+    case 2: data_ = serialize_sign(bs); break;
+    case 3: data_ = serialize_lock(bs, foreground); break;
+    case 4: data_ = serialize_seed(bs); break;
+    case 6:  // Mailbox
+    case 7:  // Bulletin board
+    case 12: // Donation box
+        skip_string(bs);
+        skip_string(bs);
+        skip_string(bs);
+        bs.skip(1);
+        break;
+    case 8: data_ = serialize_dice(bs); break;
+    case 9: data_ = serialize_provider(bs, foreground); break;
+    case 10: data_ = serialize_achievement(bs); break;
+    case 11: data_ = serialize_heart_monitor(bs); break;
+    case 14: // Mannequin
+        skip_string(bs);
+        bs.skip(23);
+        break;
+    case 15: data_ = serialize_bunny_egg(bs); break;
+    case 16: bs.skip(1); break; // Game grave
+    case 17: data_ = GameGen{}; break; // Game generator, no payload
+    case 18: data_ = serialize_xenonite(bs); break;
+    case 19: bs.skip(18); break; // Phone booth
+    case 20: data_ = serialize_crystal(bs); break;
+    case 21: data_ = serialize_burglar(bs); break;
+    case 22: // Spotlight
+    case 34: // Lobster trap
+    case 45: // Challenge timer
+    case 51: // DNA extractor
+    case 52: // Howler
+    case 58: // Adventure begins
+    case 59: // Tomb robber
+    case 74: // Safe vault
+        break;
+    case 23: data_ = serialize_display_block(bs); break;
+    case 24: data_ = serialize_vending(bs); break;
+    case 25: data_ = serialize_solar(bs); break; // Fish tank port
+    case 26: bs.skip(5); break; // Solar collector
+    case 27: bs.skip(4); break; // Forge
+    case 28: data_ = serialize_deco(bs); break; // Giving tree
+    case 30: bs.skip(5); break; // Steam organ
+    case 31: // Silk worm
+        bs.skip(1);
+        skip_string(bs);
+        bs.skip(29);
+        break;
+    case 32: data_ = serialize_sewing_machine(bs); break;
+    case 33:
+        // Only the plain Country Flag stores its flag name.
+        if (foreground == 3394) {
             data_ = serialize_country_flag(bs);
-            break;
-        case Type::BattleCage:
-            data_ = serialize_battle_cage(bs);
-            break;
-        case Type::WeatherSpecial:
-            data_ = serialize_weather_special(bs);
-            break;
-        case Type::VipEntrance:
-            data_ = serialize_vip_entrance(bs);
-            break;
-        case Type::GeigerCharger:
-            data_ = serialize_geiger_charger(bs);
-            break;
-        default: {
-            const auto type_u8 = static_cast<std::uint8_t>(type_);
-            handle_unknown_type(bs, type_u8);
-            break;
         }
+        break;
+    case 35: // Painting easel
+        bs.skip(4);
+        skip_string(bs);
+        break;
+    case 36: data_ = serialize_battle_cage(bs); break;
+    case 37: { // Pet trainer
+        skip_string(bs);
+        std::uint32_t count{};
+        bs.read(count);
+        bs.skip(4);
+        bs.skip(static_cast<std::size_t>(count) * 4);
+        break;
     }
+    case 38: // Steam engine
+    case 39: // Lock-bot
+    case 41: // Spirit storage unit
+    case 50: // Fossil prep station
+    case 73: // Temporary platform
+    case 79: // Pineapple guzzler
+        bs.skip(4);
+        break;
+    case 40: data_ = serialize_weather_special(bs); break;
+    case 42: bs.skip(21); break; // Data bedrock
+    case 43: bs.skip(16); break; // Shelf
+    case 44: data_ = serialize_vip_entrance(bs); break;
+    case 47: // Fish wall mount
+        skip_string(bs);
+        bs.skip(5);
+        break;
+    case 48: { // Portrait
+        skip_string(bs);
+        bs.skip(18);
+        std::uint16_t hat{};
+        bs.read(hat);
+        bs.skip(6);
+        if (hat == 12958) { // Infinity Crown adds a string
+            skip_string(bs);
+        }
+        break;
+    }
+    case 49: bs.skip(9); break; // Weather machine
+    case 53: bs.skip(8); break; // Chemsynth tank
+    case 54: { // Storage block: u16 byte length of its 13-byte records
+        std::uint16_t length{};
+        bs.read(length);
+        bs.skip(length);
+        break;
+    }
+    case 55: // Cooking oven: temperature, ingredient list, 3 more values
+        bs.skip(4);
+        skip_list(bs, 4);
+        bs.skip(12);
+        break;
+    case 56: // Audio rack
+        skip_string(bs);
+        bs.skip(4);
+        break;
+    case 57: data_ = serialize_geiger_charger(bs); break;
+    case 60: bs.skip(5); break; // Balloon-o-matic
+    case 61: bs.skip(35); break; // Training port
+    case 62: bs.skip(14); break; // Item sucker
+    case 63: // CyBot: commands of 15 bytes, then 2 timers
+        skip_list(bs, 15);
+        bs.skip(8);
+        break;
+    case 65: bs.skip(17); break; // Guild item
+    case 66: bs.skip(1); break; // Growscan
+    case 67: // Containment field power node
+        bs.skip(4);
+        skip_list(bs, 4);
+        break;
+    case 68: // Spirit board
+        bs.skip(4);
+        skip_string(bs);
+        skip_string(bs);
+        skip_list(bs, 4);
+        break;
+    case 69: bs.skip(16); break; // Tesseract manipulator
+    case 71: bs.skip(44); break; // Techno-organic engine (not independently confirmed)
+    case 72: bs.skip(12); break; // Stormy cloud
+    case 75: { // Angelic counting cloud
+        std::uint32_t state{};
+        bs.read(state);
+        bs.skip(2);
+        if (state == 2) {
+            bs.skip(1);
+        }
+        break;
+    }
+    case 77: // Infinity weather machine
+        bs.skip(4);
+        skip_list(bs, 4);
+        break;
+    case 80: bs.skip(8); break; // Kraken galactic block
+    case 81: // Friends entrance
+        bs.skip(6);
+        skip_list<std::uint16_t>(bs, 4);
+        break;
+    default:
+        data_ = std::monostate{};
+        return false;
+    }
+
+    return !bs.failed();
 }
 }

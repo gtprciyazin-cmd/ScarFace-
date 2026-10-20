@@ -63,8 +63,14 @@ struct Tile {
 
     }
 
-    void serialize(utils::ByteStream<>& bs, const std::uint16_t version)
+    // Returns false when the tile data is unknown or truncated: everything
+    // after it is out of sync and must not be parsed.
+    [[nodiscard]] bool serialize(utils::ByteStream<>& bs, const std::uint16_t version)
     {
+        // Start clean: fields that this tile does not carry (lock parent, extra)
+        // must not keep values from the tile that was here in the last world.
+        *this = Tile{};
+
         bs.read(foreground);
         bs.read(background);
         bs.read(parent_tile);
@@ -77,26 +83,52 @@ struct Tile {
             bs.read(lock_parent_tile);
         }
 
-        if (has_flag(flag, TileFlag::Extra) || idiot_growtopia_dev(foreground, background)) {
-            extra.serialize(bs, version, foreground, background);
-        }
-    }
-
-    [[nodiscard]] static bool idiot_growtopia_dev(const std::uint16_t fg, const std::uint16_t bg)
-    {
-        // get_item() is null while items.dat is not loaded yet or for an id it
-        // does not know; dereferencing that crashed the proxy on world join.
-        const auto* item{ item::ItemDatabase::instance().get_item(fg) };
-        if (!item) {
+        // Extra data is present only when the flag says so; current parsers
+        // (Mori, gtworld-r, badewen) never guess it from the item type.
+        if (has_flag(flag, TileFlag::Extra) && !extra.serialize(bs, version, foreground, background)) {
             return false;
         }
 
-        return (
-            item->item_type == item::ItemType::Lock ||
-            item->item_type == item::ItemType::Door ||
-            item->item_type == item::ItemType::Vending ||
-            item->item_type == item::ItemType::DisplayBlock
-        );
+        // Some tiles keep more state as a length-prefixed CBOR blob after the
+        // extra data, whether or not the extra flag is set.
+        if (has_cbor_data(foreground)) {
+            std::uint32_t length{};
+            bs.read(length);
+            bs.skip(length);
+        }
+
+        return !bs.failed();
+    }
+
+    [[nodiscard]] static bool has_cbor_data(const std::uint16_t fg)
+    {
+        switch (fg) {
+        case 3548:  // Battle Pet Cage
+        case 12598: // Offering Table
+        case 14662: // Operating Table
+        case 14666: // Auto Surgeon Station
+        case 14962: // Shirt Rack
+        case 15376: // Party Projector
+        case 15546: // Auction Block
+            return true;
+        default:
+            break;
+        }
+
+        // Bountiful roots
+        if (fg >= 8624 && fg <= 8714 && (fg - 8624) % 6 == 0) {
+            return true;
+        }
+
+        // Newer items of the same kinds, recognised by their extra file.
+        if (const auto* item{ item::ItemDatabase::instance().get_item(fg) }) {
+            const std::string_view extra_file{ item->extra_file };
+            return extra_file.ends_with("AutoSurgeonStation.xml")
+                || extra_file.ends_with("ClothesRack.xml")
+                || extra_file.ends_with("OperatingTable.xml");
+        }
+
+        return false;
     }
 
     [[nodiscard]] std::string flag_to_string() const

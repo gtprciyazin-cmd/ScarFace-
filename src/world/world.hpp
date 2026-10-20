@@ -95,11 +95,23 @@ public:
 
         utils::ByteStream bs{ extended_data, extended_data_size };
 
+        // /warp joins without the client's join_request, so World::clear() may
+        // not have run; never mix the new world with the last one.
+        name_.clear();
+        tile_map_ = WorldTileMap{};
+        object_map_ = WorldObjectMap{};
+
         bs.read(version_);
         bs.skip(4);
         bs.read(name_);
 
-        tile_map_.serialize(bs, version_);
+        // The object list follows the tiles, so it cannot be found once the
+        // tiles went out of sync.
+        if (!tile_map_.serialize(bs, version_)) {
+            object_map_ = WorldObjectMap{};
+            return;
+        }
+
         object_map_.serialize(bs, version_);
     }
 

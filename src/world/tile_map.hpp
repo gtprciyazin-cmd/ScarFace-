@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <vector>
 #include <glm/glm.hpp>
+#include <spdlog/spdlog.h>
 
 #include "tile.hpp"
 #include "../utils/byte_stream.hpp"
@@ -14,7 +15,9 @@ public:
 
     }
 
-    void serialize(utils::ByteStream<>& bs, const std::uint16_t version)
+    // Returns false when a tile could not be understood; tiles_ then holds
+    // only the tiles before it.
+    [[nodiscard]] bool serialize(utils::ByteStream<>& bs, const std::uint16_t version)
     {
         bs.read(size_.x);
         bs.read(size_.y);
@@ -28,9 +31,22 @@ public:
         count = std::min<std::uint32_t>(count, static_cast<std::uint32_t>(bs.remaining() / 8));
         tiles_.resize(count);
 
-        for (auto& tile : tiles_) {
-            tile.serialize(bs, version);
+        for (std::size_t i{ 0 }; i < tiles_.size(); ++i) {
+            if (!tiles_[i].serialize(bs, version)) {
+                spdlog::warn(
+                    "Stopped reading world tiles at tile {} of {} (foreground {}, extra type {}, offset {}): unknown or truncated data",
+                    i,
+                    count,
+                    tiles_[i].foreground,
+                    static_cast<int>(tiles_[i].extra.get_type()),
+                    bs.get_read_offset()
+                );
+                tiles_.resize(i);
+                return false;
+            }
         }
+
+        return !bs.failed();
     }
 
     [[nodiscard]] const glm::ivec2& get_size() const { return size_; }

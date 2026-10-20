@@ -11,5 +11,11 @@ set(HTTPLIB_USE_ZLIB_IF_AVAILABLE OFF CACHE BOOL "" FORCE)
 set(HTTPLIB_USE_BROTLI_IF_AVAILABLE OFF CACHE BOOL "" FORCE)
 set(HTTPLIB_USE_ZSTD_IF_AVAILABLE OFF CACHE BOOL "" FORCE)
 
+# MinGW's headers lack GetAddrInfoExCancel, which the non-blocking resolver
+# needs; the MSVC build keeps it.
+if (MINGW)
+    set(HTTPLIB_USE_NON_BLOCKING_GETADDRINFO OFF CACHE BOOL "" FORCE)
+endif ()
+
 add_subdirectory(cpp-httplib)
 add_subdirectory(enet)

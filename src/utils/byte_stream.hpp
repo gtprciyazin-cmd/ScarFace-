@@ -75,6 +75,7 @@ public:
     bool read_data(void* ptr, const std::size_t size)
     {
         if (remaining() < size) {
+            failed_ = true;
             return false;
         }
 
@@ -92,6 +93,7 @@ public:
         }
 
         if (remaining() < static_cast<std::size_t>(length)) {
+            failed_ = true;
             return false;
         }
 
@@ -114,6 +116,7 @@ public:
         }
 
         if (remaining() < static_cast<std::size_t>(length)) {
+            failed_ = true;
             return false;
         }
 
@@ -136,6 +139,7 @@ public:
     {
         if (remaining() < size) {
             read_offset_ = get_size();
+            failed_ = true;
             return false;
         }
 
@@ -144,6 +148,10 @@ public:
     }
 
     [[nodiscard]] std::size_t get_read_offset() const { return read_offset_; }
+
+    // Sticky: true once any read or skip ran past the end of the data, so a
+    // parser can check once at the end instead of after every field.
+    [[nodiscard]] bool failed() const { return failed_; }
 
     [[nodiscard]] std::size_t remaining() const
     {
@@ -183,5 +191,6 @@ private:
     std::vector<std::byte> data_vec_;
     std::span<const std::byte> data_span_;
     std::size_t read_offset_;
+    bool failed_{ false };
 };
 }

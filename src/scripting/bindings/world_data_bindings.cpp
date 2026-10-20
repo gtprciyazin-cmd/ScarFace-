@@ -13,6 +13,7 @@ namespace scripting::bindings {
 void WorldDataBindings::bind(sol::state& lua)
 {
     bind_tile(lua);
+    bind_tile_extra_variants(lua);
     bind_tile_extra(lua);
     bind_object(lua);
     bind_tile_map(lua);
@@ -29,8 +30,8 @@ void WorldDataBindings::bind_tile(sol::state& lua)
         "flag", &world::Tile::flag,
         "lock_parent_tile", &world::Tile::lock_parent_tile,
         "flag_to_string", &world::Tile::flag_to_string,
-        "extra", sol::property([](world::Tile& t) -> world::tile_extra::TileExtra* {
-            return &t.extra;
+        "extra", sol::property([](const world::Tile& t) -> world::tile_extra::TileExtra {
+            return t.extra;
         })
     );
 }
@@ -41,17 +42,29 @@ void WorldDataBindings::bind_tile_extra(sol::state& lua)
         sol::no_constructor,
         "get_type", &world::tile_extra::TileExtra::get_type,
         "has_value", &world::tile_extra::TileExtra::has_value,
-        "get_as_door", [](world::tile_extra::TileExtra& te) -> world::tile_extra::Door* {
-            return te.get_as<world::tile_extra::Door>();
+        "get_as_door", [](const world::tile_extra::TileExtra& te) -> sol::optional<world::tile_extra::Door> {
+            if (const auto* value{ te.get_as<world::tile_extra::Door>() }) {
+                return *value;
+            }
+            return sol::nullopt;
         },
-        "get_as_lock", [](world::tile_extra::TileExtra& te) -> world::tile_extra::Lock* {
-            return te.get_as<world::tile_extra::Lock>();
+        "get_as_lock", [](const world::tile_extra::TileExtra& te) -> sol::optional<world::tile_extra::Lock> {
+            if (const auto* value{ te.get_as<world::tile_extra::Lock>() }) {
+                return *value;
+            }
+            return sol::nullopt;
         },
-        "get_as_seed", [](world::tile_extra::TileExtra& te) -> world::tile_extra::Seed* {
-            return te.get_as<world::tile_extra::Seed>();
+        "get_as_seed", [](const world::tile_extra::TileExtra& te) -> sol::optional<world::tile_extra::Seed> {
+            if (const auto* value{ te.get_as<world::tile_extra::Seed>() }) {
+                return *value;
+            }
+            return sol::nullopt;
         },
-        "get_as_sign", [](world::tile_extra::TileExtra& te) -> world::tile_extra::Sign* {
-            return te.get_as<world::tile_extra::Sign>();
+        "get_as_sign", [](const world::tile_extra::TileExtra& te) -> sol::optional<world::tile_extra::Sign> {
+            if (const auto* value{ te.get_as<world::tile_extra::Sign>() }) {
+                return *value;
+            }
+            return sol::nullopt;
         }
     );
 }
@@ -125,7 +138,8 @@ void WorldDataBindings::bind_tile_map(sol::state& lua)
             sol::table tiles{ lua.create_table() };
             const auto& tile_vec = tm.get_tiles();
             for (size_t i = 0; i < tile_vec.size(); ++i) {
-                tiles[i + 1] = std::cref(tile_vec[i]);
+                // Copies: the world's tiles are replaced on every world join.
+                tiles[i + 1] = tile_vec[i];
             }
             return tiles;
         }
@@ -142,7 +156,7 @@ void WorldDataBindings::bind_object_map(sol::state& lua)
             sol::table objects{ lua.create_table() };
             const auto& obj_vec = om.get_objects();
             for (size_t i = 0; i < obj_vec.size(); ++i) {
-                objects[i + 1] = std::cref(obj_vec[i]);
+                objects[i + 1] = obj_vec[i];
             }
             return objects;
         }

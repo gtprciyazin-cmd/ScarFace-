@@ -94,6 +94,24 @@ else ()
         -fexceptions)
 endif ()
 
+# MSVC pulls these in through #pragma comment(lib) and its defaults; MinGW
+# (cross-compiling the Windows exe) needs them spelled out. MinGW also targets
+# an older Windows by default, which hides APIs cpp-httplib uses
+# (GetAddrInfoExCancel); target Windows 10 like the MSVC build does.
+if (MINGW)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE
+        _WIN32_WINNT=0x0A00)
+    target_link_libraries(${PROJECT_NAME}
+        ws2_32
+        winmm
+        crypt32
+        iphlpapi
+        shell32
+        advapi32
+        user32
+        bcrypt)
+endif ()
+
 target_compile_definitions(${PROJECT_NAME} PUBLIC
     NOMINMAX
     WIN32_LEAN_AND_MEAN
