@@ -1,11 +1,37 @@
 #include "packet_decoder.hpp"
 
+#include <algorithm>
+#include <cstring>
+#include <string>
+
 #include <magic_enum/magic_enum.hpp>
 
 #include "../utils/formatter/packet_variant_formatter.hpp"
 #include "../utils/formatter/text_parse_formatter.hpp"
 
 namespace packet {
+namespace {
+// True when the bytes after the outer message type form an unambiguous game
+// packet: a known packet type, the extended flag, and extra data that fills
+// the rest exactly (the server appends one NUL).
+[[nodiscard]] bool looks_like_game_packet(const std::span<const std::byte> data)
+{
+    constexpr std::size_t header_end{ sizeof(NetMessageType) + sizeof(GameUpdatePacket) };
+    if (data.size() <= header_end) {
+        return false;
+    }
+
+    GameUpdatePacket header{};
+    std::memcpy(&header, data.data() + sizeof(NetMessageType), sizeof(header));
+    if (!magic_enum::enum_contains(header.type) || header.flags.extended == 0 || header.data_size == 0) {
+        return false;
+    }
+
+    const std::size_t rest{ data.size() - header_end };
+    return header.data_size == rest || header.data_size + 1 == rest;
+}
+}
+
 [[nodiscard]] std::optional<std::shared_ptr<IPacket>> PacketDecoder::decode(
     std::span<const std::byte> data,
     const core::Config::LogConfig& log_config,
@@ -18,6 +44,19 @@ namespace packet {
     NetMessageType msg_type{};
     if (!stream.read(msg_type)) {
         return std::nullopt;
+    }
+
+    // With protocol 227 some messages (likely the inventory) arrive under an
+    // outer type the proxy does not know while carrying an ordinary game
+    // packet. Read those as game packets; the original bytes are still the
+    // ones forwarded.
+    if ((msg_type == NET_MESSAGE_UNKNOWN || msg_type > NET_MESSAGE_GAME_PACKET) && looks_like_game_packet(data)) {
+        spdlog::debug(
+            "Net message type {} ({} bytes) carries a game packet, reading it as one",
+            static_cast<std::uint32_t>(msg_type),
+            data.size()
+        );
+        msg_type = NET_MESSAGE_GAME_PACKET;
     }
 
     switch (msg_type) {
@@ -149,6 +188,16 @@ namespace packet {
             data.size(),
             spdlog::to_hex(preview.begin(), preview.end())
         );
+
+        // Error, track and client-log messages are NUL-terminated text.
+        if (msg_type == NET_MESSAGE_ERROR || msg_type == NET_MESSAGE_TRACK || msg_type == NET_MESSAGE_CLIENT_LOG_REQUEST) {
+            std::string text{ reinterpret_cast<const char*>(data.data() + sizeof(NetMessageType)), data.size() - sizeof(NetMessageType) };
+            if (const auto nul{ text.find('\0') }; nul != std::string::npos) {
+                text.resize(nul);
+            }
+            spdlog::debug("{}:\n{}", magic_enum::enum_name(msg_type), text);
+        }
+
         return std::nullopt;
     }
     }
