@@ -4,11 +4,14 @@
 #include <cctype>
 #include <string>
 #include <tuple>
+#include <type_traits>
 
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>
 
 #include "../../packet/game/message.hpp"
+#include "../../world/player_finder.hpp"
+#include "../../world/world.hpp"
 #include "../../packet/message/chat.hpp"
 #include "../../packet/packet_helper.hpp"
 #include "../../utils/roulette.hpp"
@@ -100,13 +103,35 @@ void RouletteHandler::listen()
             }
 
             if (const auto pkt{ evt->template get<Packet>() }) {
-                on_message(pkt->text, packet::game::variant_delay(pkt->game_packet));
+                std::int32_t net_id{ -1 };
+                if constexpr (std::is_same_v<Packet, packet::game::OnTalkBubble>) {
+                    net_id = pkt->net_id;
+                }
+                on_message(pkt->text, packet::game::variant_delay(pkt->game_packet), net_id);
             }
         })
     );
 }
 
-void RouletteHandler::on_message(const std::string_view text, const std::int32_t delay)
+std::int32_t RouletteHandler::find_spinner(const std::string_view spinner, const std::int32_t net_id_hint)
+{
+    const auto& world{ world::World::instance() };
+    if (net_id_hint >= 0 && !world.get_player(net_id_hint).expired()) {
+        return net_id_hint;
+    }
+
+    // The console message only names the spinner; only an exact name counts.
+    const auto wanted{ world::normalize_player_name(spinner) };
+    for (const auto& match : world::find_players_by_name(world.get_players(), spinner, -1)) {
+        if (world::normalize_player_name(match.name) == wanted) {
+            return match.net_id;
+        }
+    }
+
+    return net_id_hint;
+}
+
+void RouletteHandler::on_message(const std::string_view text, const std::int32_t delay, const std::int32_t spinner_net_id)
 {
     const auto spin{ utils::roulette::parse_spin_message(text) };
     if (!spin) {
@@ -150,6 +175,17 @@ void RouletteHandler::on_message(const std::string_view text, const std::int32_t
     packet::message::Log log{};
     log.msg = fmt::format("`9[Spin] ```w{}`` got {} `o({}={}, {:.1f}s early)``", spin->spinner, number, mode_label, mode_value, delay / 1000.0);
     send_to_player(log);
+
+    // Above the spinner's head like a normal chat bubble; the server's own
+    // bubble replaces it once the wheel stops. Without a known player, fall
+    // back to the overlay at the top of the screen.
+    if (const auto net_id{ find_spinner(spin->spinner, spinner_net_id) }; net_id >= 0) {
+        packet::game::OnTalkBubble bubble{};
+        bubble.net_id = net_id;
+        bubble.text = fmt::format("`9[Spin]`` {} `o({}={})``", number, mode_label, mode_value);
+        send_to_player(bubble);
+        return;
+    }
 
     packet::game::OnTextOverlay overlay{};
     overlay.text = fmt::format("`w{}`` got {} `o({}={})``", spin->spinner, number, mode_label, mode_value);

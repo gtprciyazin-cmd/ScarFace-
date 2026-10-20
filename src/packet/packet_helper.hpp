@@ -68,6 +68,16 @@ struct GamePacket : IPacket {
     }
 };
 
+// Header for a function call the proxy builds itself: net_id -1 addresses
+// the client as a whole. Left at 0 the client runs the call on the player with
+// net id 0, i.e. ignores it (that is why the /proxy menu never showed up).
+[[nodiscard]] inline GameUpdatePacket function_call_header()
+{
+    GameUpdatePacket header{};
+    header.net_id = static_cast<std::uint32_t>(-1);
+    return header;
+}
+
 template <PacketId Id, int Channel = 0>
 struct VariantPacket : IPacket {
     static constexpr PacketId ID = Id;
@@ -77,7 +87,7 @@ struct VariantPacket : IPacket {
     using IsVariantPacket = std::true_type;
 
     PacketVariant variant;
-    GameUpdatePacket game_packet{};
+    GameUpdatePacket game_packet{ function_call_header() };
 
     [[nodiscard]] PacketId id() const override { return ID; }
     [[nodiscard]] int channel() const override { return CHANNEL; }

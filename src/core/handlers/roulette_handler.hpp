@@ -60,7 +60,9 @@ private:
 
     template <packet::PacketId Id, typename Packet>
     void listen();
-    void on_message(std::string_view text, std::int32_t delay);
+    // spinner_net_id: from the talk bubble when the result came as one, else -1.
+    void on_message(std::string_view text, std::int32_t delay, std::int32_t spinner_net_id);
+    [[nodiscard]] static std::int32_t find_spinner(std::string_view spinner, std::int32_t net_id_hint);
     void send_to_player(packet::IPacket& packet) const;
 
     event::Dispatcher& dispatcher_;

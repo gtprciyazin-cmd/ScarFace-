@@ -110,6 +110,9 @@ public:
 
             uint8_t type{ 0 };
             byte_stream.read(type);
+            if (byte_stream.failed()) {
+                return false;
+            }
 
             if (type == static_cast<uint8_t>(VariantType::FLOAT)) {
                 float value{ 0.0f };
@@ -145,9 +148,11 @@ public:
                 variants_.emplace_back(value);
             }
             else {
-                // The size of an unknown type is unknown, so everything after
-                // it would be misread.
-                return false;
+                // An unknown type has an unknown size, so nothing after it can
+                // be read. Keep the arguments before it: rejecting the whole
+                // call would hide e.g. an OnSendToServer from the proxy, and
+                // the client would then connect around it.
+                return !variants_.empty();
             }
         }
 

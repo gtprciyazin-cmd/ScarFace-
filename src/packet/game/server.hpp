@@ -105,9 +105,20 @@ struct OnSendToServer : VariantPacket<PacketId::OnSendToServer> {
         }
         out.set(4, text);
 
-        out.set_integer(5, login_mode);
+        // Fill in what the packet does not carry yet (built from scratch, or
+        // a script set a username on a redirect without one).
+        if (out.size() <= 5) {
+            out.add(login_mode);
+        }
+        else {
+            out.set_integer(5, login_mode);
+        }
+
         if (out.size() > 6) {
             out.set(6, username);
+        }
+        else if (!username.empty()) {
+            out.add(username);
         }
 
         return VariantPayload{ game_packet, out };
@@ -176,7 +187,16 @@ struct OnSuperMainStartAcceptLogonHrdxs47254722215a : VariantPacket<PacketId::On
         // newer) and replace only the fields above.
         PacketVariant out{ variant };
         if (out.size() < 2) {
-            out = PacketVariant{ std::string{ "OnSuperMainStartAcceptLogonHrdxs47254722215a" }, int32_t{ 0 } };
+            // Built from scratch: the full layout, with an empty settings string.
+            out = PacketVariant{
+                std::string{ "OnSuperMainStartAcceptLogonHrdxs47254722215a" },
+                int32_t{ 0 },
+                std::string{},
+                std::string{},
+                std::string{},
+                std::string{},
+                uint32_t{ 0 }
+            };
         }
 
         if (item_hash_signed) {
