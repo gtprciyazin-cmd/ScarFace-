@@ -1,4 +1,5 @@
 #pragma once
+#include <algorithm>
 #include <vector>
 
 #include "object.hpp"
@@ -20,6 +21,8 @@ public:
         bs.read(count);
         bs.read(drop_id_);
 
+        // Each object is 16 bytes on the wire; cap a corrupt count to what is left.
+        count = std::min<std::uint32_t>(count, static_cast<std::uint32_t>(bs.remaining() / 16));
         objects_.resize(count);
         for (auto& object : objects_) {
             object.serialize(bs, version);

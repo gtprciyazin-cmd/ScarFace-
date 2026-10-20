@@ -74,27 +74,31 @@ void Server::on_receive(ENetPeer* peer, const std::span<const std::byte> data)
         return;
     }
 
-    const auto decoded{ packet::PacketDecoder::decode(data, config_.get_log_config(), "ServerBound") };
-    if (!decoded.has_value()) {
-        const event::RawPacketEvent evt{ event::Type::ServerBoundPacket, data };
-        dispatcher_.dispatch(evt);
-        return;
-    }
+    // A handler that chokes on a packet it does not understand (e.g. after a
+    // Growtopia update) must not take the proxy down or eat the packet: log it
+    // and still forward the original bytes.
+    try {
+        const auto decoded{ packet::PacketDecoder::decode(data, config_.get_log_config(), "ServerBound") };
+        if (decoded.has_value()) {
+            const auto& packet{ decoded.value() };
+            if (
+                const auto& registry{ packet::event_registry::PacketEventRegistry::instance() };
+                registry.has_event(packet->id())
+            ) {
+                const auto evt{ registry.emit(
+                    dispatcher_,
+                    event::Direction::ServerBound,
+                    packet
+                ) };
 
-    const auto& packet{ decoded.value() };
-    if (
-        const auto& registry{ packet::event_registry::PacketEventRegistry::instance() };
-        registry.has_event(packet->id())
-    ) {
-        const auto evt{ registry.emit(
-            dispatcher_,
-            event::Direction::ServerBound,
-            packet
-        ) };
-
-        if (evt && evt->canceled) {
-            return;
+                if (evt && evt->canceled) {
+                    return;
+                }
+            }
         }
+    }
+    catch (const std::exception& e) {
+        spdlog::error("Error while handling a packet from the Growtopia client: {}", e.what());
     }
 
     const event::RawPacketEvent evt{ event::Type::ServerBoundPacket, data };

@@ -11,7 +11,7 @@ namespace packet {
     const core::Config::LogConfig& log_config,
     std::string_view direction
 ) {
-    spdlog::info("[{}] Decoding packet of size {} bytes", direction, data.size());
+    spdlog::debug("[{}] Decoding packet of size {} bytes", direction, data.size());
 
     utils::ByteStream stream{ data.data(), data.size() };
 
@@ -29,7 +29,7 @@ namespace packet {
         };
         Payload payload = text_payload;
 
-        spdlog::info("Received server hello packet");
+        spdlog::debug("Received server hello packet");
         return PacketRegistry::instance().create(payload);
     }
     case NET_MESSAGE_GENERIC_TEXT:
@@ -39,7 +39,7 @@ namespace packet {
 
         utils::TextParse parser{ message };
         if (log_config.print_message) {
-            spdlog::info(
+            spdlog::debug(
                 "{} ({} bytes):\n{}",
                 magic_enum::enum_name(msg_type),
                 message.size(),
@@ -71,7 +71,7 @@ namespace packet {
             stream.get_size() - stream.get_read_offset()
         };
 
-        spdlog::info(
+        spdlog::debug(
             "{} with type of {}",
             magic_enum::enum_name(msg_type),
             magic_enum::enum_name(game_pkt.type)
@@ -83,7 +83,7 @@ namespace packet {
                 data.data() + sizeof(NetMessageType), 
                 sizeof(GameUpdatePacket) 
             };
-            spdlog::info(
+            spdlog::debug(
                 "Game packet: {}",
                 spdlog::to_hex(game_pkt_view.begin(), game_pkt_view.end())
             );
@@ -98,7 +98,7 @@ namespace packet {
             }
 
             if (log_config.print_variant) {
-                spdlog::info("{}", variant);
+                spdlog::debug("{}", variant);
             }
 
             VariantPayload var_payload{ 
@@ -117,7 +117,7 @@ namespace packet {
         }
 
         if (log_config.print_extra && extra_size > 1) {
-            spdlog::info("Extra data: {}", spdlog::to_hex(extra_view.begin(), extra_view.end()));
+            spdlog::debug("Extra data: {}", spdlog::to_hex(extra_view.begin(), extra_view.end()));
         }
 
         GamePayload game_payload{ 

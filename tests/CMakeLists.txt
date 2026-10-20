@@ -23,7 +23,10 @@ add_executable(GTProxy_tests
     utils/test_byte_stream.cpp
     utils/test_roulette.cpp
     world/test_object_finder.cpp
-    world/test_player_finder.cpp)
+    world/test_player_finder.cpp
+    world/test_world_parse.cpp
+    ${CMAKE_SOURCE_DIR}/src/world/tile_extra.cpp
+    ${CMAKE_SOURCE_DIR}/src/item/item_database.cpp)
 
 target_include_directories(GTProxy_tests PRIVATE
     ${CMAKE_SOURCE_DIR}/src)

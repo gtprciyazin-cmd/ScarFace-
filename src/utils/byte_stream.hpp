@@ -1,4 +1,5 @@
 #pragma once
+#include <algorithm>
 #include <vector>
 #include <string>
 #include <span>
@@ -73,7 +74,7 @@ public:
 
     bool read_data(void* ptr, const std::size_t size)
     {
-        if (get_size() - read_offset_ < size) {
+        if (remaining() < size) {
             return false;
         }
 
@@ -90,7 +91,7 @@ public:
             }
         }
 
-        if (get_size() - read_offset_ < static_cast<std::size_t>(length)) {
+        if (remaining() < static_cast<std::size_t>(length)) {
             return false;
         }
 
@@ -112,7 +113,7 @@ public:
             }
         }
 
-        if (get_size() - read_offset_ < static_cast<std::size_t>(length)) {
+        if (remaining() < static_cast<std::size_t>(length)) {
             return false;
         }
 
@@ -127,9 +128,28 @@ public:
         return *this;
     }
 
-    void backtrack(const std::size_t size) { read_offset_ -= size; }
-    void skip(const std::size_t size) { read_offset_ += size; }
+    // Both clamp to the data bounds, so a bogus length from the wire can never
+    // move the read offset outside the buffer (later reads then just fail).
+    void backtrack(const std::size_t size) { read_offset_ -= std::min(size, read_offset_); }
+
+    bool skip(const std::size_t size)
+    {
+        if (remaining() < size) {
+            read_offset_ = get_size();
+            return false;
+        }
+
+        read_offset_ += size;
+        return true;
+    }
+
     [[nodiscard]] std::size_t get_read_offset() const { return read_offset_; }
+
+    [[nodiscard]] std::size_t remaining() const
+    {
+        const auto size{ get_size() };
+        return read_offset_ < size ? size - read_offset_ : 0;
+    }
     
     [[nodiscard]] std::size_t get_size() const
     {

@@ -96,3 +96,37 @@ TEST(ByteStreamTest, SpanConstructor)
 
     EXPECT_EQ(result.size(), 5);
 }
+
+TEST(ByteStreamTest, SkipPastEndClampsAndLaterReadsFail)
+{
+    ByteStream bs{};
+    bs.write<std::uint32_t>(1);
+
+    const auto data{ bs.get_data() };
+    ByteStream view{ data.data(), data.size() };
+
+    EXPECT_FALSE(view.skip(100));
+    EXPECT_EQ(view.get_read_offset(), 4u);
+    EXPECT_EQ(view.remaining(), 0u);
+
+    // Used to underflow the bounds check and memcpy past the buffer.
+    std::uint32_t value{ 0xABCD };
+    EXPECT_FALSE(view.read(value));
+    EXPECT_EQ(value, 0xABCDu);
+
+    std::string str{};
+    EXPECT_FALSE(view.read(str));
+}
+
+TEST(ByteStreamTest, BacktrackDoesNotGoBeforeStart)
+{
+    ByteStream bs{};
+    bs.write<std::uint16_t>(0x1234);
+    const auto data{ bs.get_data() };
+    ByteStream view{ data.data(), data.size() };
+
+    view.backtrack(10);
+    std::uint16_t value{};
+    ASSERT_TRUE(view.read(value));
+    EXPECT_EQ(value, 0x1234);
+}

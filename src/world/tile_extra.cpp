@@ -1,7 +1,16 @@
 #include "tile_extra.hpp"
 
+#include <algorithm>
+
 namespace world::tile_extra {
 namespace {
+// Caps a list length read from the wire to the number of 4-byte entries the
+// remaining data can hold, so a corrupt length cannot allocate gigabytes.
+[[nodiscard]] std::uint32_t clamp_u32_count(const utils::ByteStream<>& bs, const std::uint32_t count)
+{
+    return std::min<std::uint32_t>(count, static_cast<std::uint32_t>(bs.remaining() / sizeof(std::uint32_t)));
+}
+
 Door serialize_door(utils::ByteStream<>& bs)
 {
     Door door{};
@@ -26,6 +35,7 @@ Lock serialize_lock(utils::ByteStream<>& bs, const std::uint16_t foreground)
 
     std::uint32_t access_size{};
     bs.read(access_size);
+    access_size = clamp_u32_count(bs, access_size);
 
     lock.accesses.resize(access_size);
 
@@ -130,6 +140,7 @@ Solar serialize_solar(utils::ByteStream<>& bs) {
     Solar solar;
     bs.read(solar.unk);
     bs.read(solar.unk2);
+    solar.unk2 = clamp_u32_count(bs, solar.unk2);
     solar.unk3.resize(solar.unk2);
     for (std::uint32_t i = 0; i < solar.unk2; i++) {
         bs.read(solar.unk3[i]);
@@ -178,6 +189,7 @@ VipEntrance serialize_vip_entrance(utils::ByteStream<>& bs) {
     bs.read(vip_entrance.owner_id);
     std::uint32_t access_size{};
     bs.read(access_size);
+    access_size = clamp_u32_count(bs, access_size);
     vip_entrance.accesses.resize(access_size);
     for (std::uint32_t i = 0; i < access_size; i++) {
         bs.read(vip_entrance.accesses[i]);
@@ -235,9 +247,9 @@ void handle_unknown_type(utils::ByteStream<>& bs, std::uint8_t type_u8) {
             bs.skip(9);
             break;
         case 55: {
-            std::uint32_t count;
+            std::uint32_t count{};
             bs.read(count);
-            bs.skip(count * 4);
+            bs.skip(static_cast<std::size_t>(count) * 4);
         }
         bs.skip(16);
         break;
@@ -256,9 +268,9 @@ void handle_unknown_type(utils::ByteStream<>& bs, std::uint8_t type_u8) {
             bs.skip(14);
             break;
         case 63: {
-            std::uint32_t count;
+            std::uint32_t count{};
             bs.read(count);
-            bs.skip(count * 15);
+            bs.skip(static_cast<std::size_t>(count) * 15);
         }
         bs.skip(8);
         break;
@@ -290,9 +302,9 @@ void handle_unknown_type(utils::ByteStream<>& bs, std::uint8_t type_u8) {
         case 77:
             bs.skip(4);
             {
-                std::uint32_t count;
+                std::uint32_t count{};
                 bs.read(count);
-                bs.skip(count * 4);
+                bs.skip(static_cast<std::size_t>(count) * 4);
             }
             break;
         case 81:

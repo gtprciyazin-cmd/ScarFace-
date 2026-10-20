@@ -1,4 +1,5 @@
 #pragma once
+#include <algorithm>
 #include <vector>
 #include <glm/glm.hpp>
 
@@ -22,6 +23,9 @@ public:
         bs.read(count);
         bs.skip(5);
 
+        // Every tile takes at least 8 bytes. A count the data cannot hold means
+        // the format changed under us, so never let it allocate gigabytes.
+        count = std::min<std::uint32_t>(count, static_cast<std::uint32_t>(bs.remaining() / 8));
         tiles_.resize(count);
 
         for (auto& tile : tiles_) {

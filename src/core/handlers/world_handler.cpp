@@ -106,7 +106,14 @@ void WorldHandler::setup_send_map_data_handler()
                 return;
             }
 
-            world::World::instance().serialize(pkt->extra.data(), pkt->extra.size());
+            // The packet is already forwarded untouched; failing to understand a
+            // newer world format must only cost us world state, never the proxy.
+            try {
+                world::World::instance().serialize(pkt->extra.data(), pkt->extra.size());
+            }
+            catch (const std::exception& e) {
+                spdlog::error("Failed to parse world data: {}", e.what());
+            }
         })
     );
 }
