@@ -1,0 +1,67 @@
+name: Scarface Proxy Windows build
+
+on:
+  push:
+    branches: [scarface-proxy]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  # Override with repository variables (Settings > Secrets and variables > Actions > Variables).
+  LICENSE_SERVER: ${{ vars.GTPROXY_LICENSE_SERVER || 'http://185.34.101.57:8080' }}
+  LICENSE_PUBLIC_KEY: ${{ vars.GTPROXY_LICENSE_PUBLIC_KEY || 'd5fac7022654e67e496c1c0d8959177ff7f074ded7f17d80b40c49bf48b23689' }}
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Conan
+        run: pip install "conan>2.0"
+
+      - uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Cache Conan packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.conan2/p
+          key: conan-windows-${{ hashFiles('conanfile.py') }}
+
+      - name: Configure
+        run: >
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          -DGTPROXY_BUILD_VERSION=${{ github.run_number }}
+          -DGTPROXY_LICENSE_SERVER=${{ env.LICENSE_SERVER }}
+          -DGTPROXY_LICENSE_PUBLIC_KEY=${{ env.LICENSE_PUBLIC_KEY }}
+
+      - name: Build
+        run: cmake --build build --target ScarfaceProxy
+
+      - name: Package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Copy-Item build/src/ScarfaceProxy.exe dist/
+          Compress-Archive -Path dist/* -DestinationPath ScarfaceProxy.zip -Force
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ScarfaceProxy-${{ github.run_number }}
+          path: dist/ScarfaceProxy.exe
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: scarface-build-${{ github.run_number }}
+          name: Scarface Proxy build ${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          files: |
+            build/src/ScarfaceProxy.exe
+            ScarfaceProxy.zip
