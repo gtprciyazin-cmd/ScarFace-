@@ -11,7 +11,7 @@ permissions:
 env:
   # Override with repository variables (Settings > Secrets and variables > Actions > Variables).
   LICENSE_SERVER: ${{ vars.GTPROXY_LICENSE_SERVER || 'http://185.34.101.57:8080' }}
-  LICENSE_PUBLIC_KEY: ${{ vars.GTPROXY_LICENSE_PUBLIC_KEY || 'd5fac7022654e67e496c1c0d8959177ff7f074ded7f17d80b40c49bf48b23689' }}
+  LICENSE_PUBLIC_KEY: ${{ vars.GTPROXY_LICENSE_PUBLIC_KEY || '704a125475e789fdf9f1bf2c5c9a114e32cf96a25343c259f813cc0426996b7f' }}
 
 jobs:
   build:
