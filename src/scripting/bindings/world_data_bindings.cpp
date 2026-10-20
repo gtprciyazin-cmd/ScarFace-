@@ -126,6 +126,7 @@ void WorldDataBindings::bind_tile_map(sol::state& lua)
 {
     lua.new_usertype<WorldTileMap>("WorldTileMap",
         sol::no_constructor,
+        "is_complete", &WorldTileMap::is_complete,
         "get_size", [](const WorldTileMap& tm, sol::this_state s) {
             sol::state_view lua{ s };
             sol::table t = lua.create_table();

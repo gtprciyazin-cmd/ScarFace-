@@ -1,5 +1,6 @@
 #include "drop_handler.hpp"
 
+#include <array>
 #include <charconv>
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>
@@ -134,6 +135,100 @@ bool DropHandler::on_drop_dialog(
     inventory.add(item_id, -amount);
     spdlog::info("Drop: answered drop dialog for item {} with count {}", item_id, amount);
     return true;
+}
+
+DropHandler::Result DropHandler::request_drop_all_locks()
+{
+    if (!client_.is_connected()) {
+        return Result::NotConnected;
+    }
+
+    if (world::World::instance().get_local_net_id() < 0) {
+        return Result::NotInWorld;
+    }
+
+    drop_all_step(0, std::make_shared<std::vector<std::string>>());
+    return Result::Sent;
+}
+
+void DropHandler::drop_all_step(const std::size_t index, std::shared_ptr<std::vector<std::string>> dropped)
+{
+    struct LockType {
+        std::uint16_t item_id;
+        std::string_view name;
+    };
+    static constexpr std::array<LockType, 3> LOCKS{ {
+        { item::locks::WORLD_LOCK, "World Lock" },
+        { item::locks::DIAMOND_LOCK, "Diamond Lock" },
+        { item::locks::BLUE_GEM_LOCK, "Blue Gem Lock" },
+    } };
+
+    if (index >= LOCKS.size()) {
+        if (dropped->empty()) {
+            send_log("`4Drop all: ``you have no World, Diamond or Blue Gem Locks");
+            return;
+        }
+
+        std::string summary{};
+        for (const auto& part : *dropped) {
+            summary += summary.empty() ? part : ", " + part;
+        }
+        send_log(fmt::format("`2Dropped ``{}", summary));
+        return;
+    }
+
+    const auto item_id{ LOCKS[index].item_id };
+    const std::string name{ LOCKS[index].name };
+    const auto next{ [this, index, dropped] {
+        dialogs_.run_later(DROP_ALL_STEP_DELAY, [this, index, dropped] { drop_all_step(index + 1, dropped); });
+    } };
+
+    // Skip lock types the inventory says the player has none of; when the
+    // inventory is unknown, the server's dialog (or its absence) decides.
+    if (const auto& inventory{ player::Inventory::instance() }; inventory.is_known() && inventory.get(item_id) <= 0) {
+        drop_all_step(index + 1, dropped);
+        return;
+    }
+
+    if (!send_text(fmt::format("action|drop\n|itemID|{}", item_id))) {
+        send_log(fmt::format("`4Drop failed: ``lost connection while dropping {}", name));
+        return;
+    }
+
+    dialogs_.expect(
+        "drop_item",
+        [this, item_id, name, dropped, next](const packet::game::DialogInfo& dialog) {
+            const auto dialog_item{ dialog.get_embed_data("itemID") };
+            if (!dialog_item || parse_number<std::uint16_t>(*dialog_item) != item_id) {
+                return false;
+            }
+
+            // The amount box defaults to everything the player holds.
+            int owned{ 0 };
+            if (const auto input{ dialog.get_text_input("count") }) {
+                owned = parse_number<int>(*input).value_or(0);
+            }
+
+            if (owned > 0) {
+                auto_collect_.ignore_drops_of(item_id, AUTO_COLLECT_IGNORE_WINDOW);
+                const auto reply{ packet::game::make_dialog_return(dialog, { { "count", std::to_string(owned) } }) };
+                if (!send_text(reply)) {
+                    send_log(fmt::format("`4Drop failed: ``lost connection while dropping {}", name));
+                    return true;
+                }
+
+                player::Inventory::instance().set(item_id, 0);
+                dropped->push_back(fmt::format("`w{}`` {}", owned, name));
+                spdlog::info("Drop all: dropped {} x item {}", owned, item_id);
+            }
+
+            next();
+            return true;
+        },
+        DIALOG_TIMEOUT,
+        // No dialog: the player has none of this lock.
+        next
+    );
 }
 
 bool DropHandler::send_text(const std::string_view text) const

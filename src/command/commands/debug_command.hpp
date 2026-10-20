@@ -145,8 +145,13 @@ private:
         const auto& size{ tile_map.get_size() };
         const auto& tiles{ tile_map.get_tiles() };
         const auto index{ static_cast<std::size_t>(*x) + static_cast<std::size_t>(*y) * static_cast<std::size_t>(size.x) };
-        if (*x < 0 || *y < 0 || *x >= size.x || *y >= size.y || index >= tiles.size()) {
+        if (*x < 0 || *y < 0 || *x >= size.x || *y >= size.y) {
             send_log(ctx, fmt::format("Tile ({}, {}) is outside the world ({}x{}).", *x, *y, size.x, size.y));
+            return Result::Failed;
+        }
+
+        if (index >= tiles.size()) {
+            send_log(ctx, fmt::format("Tile ({}, {}) is unknown: this world's data was only read up to tile {}.", *x, *y, tiles.size()));
             return Result::Failed;
         }
 

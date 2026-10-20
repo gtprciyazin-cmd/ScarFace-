@@ -42,6 +42,7 @@ public:
         local_net_id_ = -1;
         tile_map_ = WorldTileMap{};
         object_map_ = WorldObjectMap{};
+        objects_known_ = false;
     }
 
     [[nodiscard]] std::weak_ptr<player::Player> get_player(const int32_t net_id) const
@@ -82,6 +83,11 @@ public:
         return object_map_;
     }
 
+    // False when the world's object list could not be read: the drop ids of
+    // new objects cannot be derived then, so drops must not be tracked (auto
+    // collect would ask the server for objects that do not exist).
+    [[nodiscard]] bool objects_known() const { return objects_known_; }
+
     [[nodiscard]] uint16_t get_version() const
     {
         return version_;
@@ -106,13 +112,15 @@ public:
         bs.read(name_);
 
         // The object list follows the tiles, so it cannot be found once the
-        // tiles went out of sync.
+        // tiles went out of sync; the drop ids are then unknown too.
+        objects_known_ = false;
         if (!tile_map_.serialize(bs, version_)) {
             object_map_ = WorldObjectMap{};
             return;
         }
 
         object_map_.serialize(bs, version_);
+        objects_known_ = !bs.failed();
     }
 
 private:
@@ -124,5 +132,6 @@ private:
 
     WorldTileMap tile_map_;
     WorldObjectMap object_map_;
+    bool objects_known_{ false };
 };
 }

@@ -1,6 +1,8 @@
 #pragma once
 #include <chrono>
 #include <cstdint>
+#include <memory>
+#include <vector>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -43,6 +45,10 @@ public:
 
     Result request_drop(std::uint16_t item_id, int amount, const std::string& item_name);
 
+    // Drops every World, Diamond and Blue Gem Lock the player holds, one lock
+    // type after another; each takes the real count from its drop dialog.
+    Result request_drop_all_locks();
+
 private:
     // How long to wait for the server's drop dialog before giving up.
     static constexpr auto DIALOG_TIMEOUT{ std::chrono::milliseconds{ 3000 } };
@@ -50,8 +56,11 @@ private:
     static constexpr auto AUTO_COLLECT_IGNORE_WINDOW{ std::chrono::milliseconds{ 5000 } };
     // Time for the server to apply shattered locks before the drop is requested.
     static constexpr auto CONVERSION_DELAY{ std::chrono::milliseconds{ 600 } };
+    // Pause between the lock types of a drop-all, so the drops do not race.
+    static constexpr auto DROP_ALL_STEP_DELAY{ std::chrono::milliseconds{ 400 } };
 
     void start_drop(std::uint16_t item_id, int amount, const std::string& item_name);
+    void drop_all_step(std::size_t index, std::shared_ptr<std::vector<std::string>> dropped);
     bool on_drop_dialog(const packet::game::DialogInfo& dialog, std::uint16_t item_id, int amount, const std::string& item_name);
     bool send_text(std::string_view text) const;
     void send_log(const std::string& msg) const;

@@ -42,13 +42,17 @@ public:
                     bs.get_read_offset()
                 );
                 tiles_.resize(i);
+                complete_ = false;
                 return false;
             }
         }
 
+        complete_ = !bs.failed() && tiles_.size() == static_cast<std::size_t>(size_.x) * static_cast<std::size_t>(size_.y);
         return !bs.failed();
     }
 
+    // False when parsing stopped early: tiles past get_tiles().size() are unknown.
+    [[nodiscard]] bool is_complete() const { return complete_; }
     [[nodiscard]] const glm::ivec2& get_size() const { return size_; }
     [[nodiscard]] glm::ivec2& get_size() { return size_; }
     [[nodiscard]] const std::vector<world::Tile>& get_tiles() const { return tiles_; }
@@ -57,4 +61,5 @@ public:
 private:
     glm::ivec2 size_;
     std::vector<world::Tile> tiles_;
+    bool complete_{ false };
 };

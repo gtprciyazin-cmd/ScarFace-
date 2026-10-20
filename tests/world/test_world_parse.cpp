@@ -184,6 +184,9 @@ TEST(WorldParseTest, StaysInSyncOnRealWorldTiles)
     EXPECT_EQ(tiles[7].foreground, 0x0512);
     EXPECT_EQ(tiles[8].foreground, 0x0afa);
 
+    EXPECT_TRUE(world.get_tile_map().is_complete());
+    EXPECT_TRUE(world.objects_known());
+
     const auto& objects{ world.get_object_map().get_objects() };
     ASSERT_EQ(objects.size(), 1u);
     EXPECT_EQ(objects[0].item_id, 242);
@@ -210,6 +213,10 @@ TEST(WorldParseTest, UnknownExtraTypeStopsInsteadOfDesyncing)
     ASSERT_EQ(world.get_tile_map().get_tiles().size(), 1u);
     EXPECT_EQ(world.get_tile_map().get_tiles()[0].foreground, 2);
     EXPECT_TRUE(world.get_object_map().get_objects().empty());
+
+    // Nothing after the unknown tile can be trusted, drop ids included.
+    EXPECT_FALSE(world.get_tile_map().is_complete());
+    EXPECT_FALSE(world.objects_known());
 }
 
 TEST(WorldParseTest, ReadsCborTrailerAndNewExtraTypes)

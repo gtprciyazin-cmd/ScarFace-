@@ -7,6 +7,7 @@
 
 #include "../command/commands/auto_collect_command.hpp"
 #include "../command/commands/balance_command.hpp"
+#include "../command/commands/drop_all_locks_command.hpp"
 #include "../command/commands/drop_command.hpp"
 #include "../command/commands/spins_command.hpp"
 #include "../command/commands/toggle_command.hpp"
@@ -100,6 +101,7 @@ void Core::register_feature_commands()
     registry.add(std::make_unique<command::DropCommand>("wd", item::locks::WORLD_LOCK, "World Lock", *drop_handler_));
     registry.add(std::make_unique<command::DropCommand>("dd", item::locks::DIAMOND_LOCK, "Diamond Lock", *drop_handler_));
     registry.add(std::make_unique<command::DropCommand>("bd", item::locks::BLUE_GEM_LOCK, "Blue Gem Lock", *drop_handler_));
+    registry.add(std::make_unique<command::DropAllLocksCommand>(*drop_handler_));
     registry.add(std::make_unique<command::WorldActionCommand>(Action::Pull, *world_manage_handler_));
     registry.add(std::make_unique<command::WorldActionCommand>(Action::Kick, *world_manage_handler_));
     registry.add(std::make_unique<command::WorldActionCommand>(Action::Ban, *world_manage_handler_));

@@ -24,6 +24,7 @@ It is based on [GTProxy](https://github.com/ZTzTopia/GTProxy) by ZTzTopia (MIT l
 | Command | What it does |
 |---|---|
 | `/wd <n>`, `/dd <n>`, `/bd <n>` | Drop World / Diamond / Blue Gem Locks without the amount dialog. If you are short, a bigger lock is broken first (e.g. a Diamond Lock into 100 World Locks). |
+| `/daw` | Drop every World, Diamond and Blue Gem Lock in your inventory, one lock type after another. |
 | `/balance` | Show how many locks you have and their total value in World Locks. |
 | `/autocollect [on\|off\|status\|range <1-5>]` | Pick up dropped items near you. Locks you just dropped are left alone. |
 | `/roulette [on\|off\|status]` | Show roulette results (and reme) the moment the wheel is punched, before it stops. |

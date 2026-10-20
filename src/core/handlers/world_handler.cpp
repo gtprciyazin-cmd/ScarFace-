@@ -214,6 +214,10 @@ void WorldHandler::setup_item_change_object_handler()
             auto& object_map{ world.get_object_map() };
 
             if (pkt->object_change_type == -1) {
+                if (!world.objects_known()) {
+                    return; // Drop ids unknown in this world; see World::objects_known().
+                }
+
                 object_map.increment_drop_id();
                 
                 world::Object obj{};
