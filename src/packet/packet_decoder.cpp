@@ -140,8 +140,17 @@ namespace packet {
 
         return packet;
     }
-    default:
+    default: {
+        // Forwarded untouched, but logged so new message types can be identified.
+        const auto preview{ data.first(std::min<std::size_t>(data.size(), 64)) };
+        spdlog::debug(
+            "Unhandled net message type {} ({} bytes): {}",
+            static_cast<std::uint32_t>(msg_type),
+            data.size(),
+            spdlog::to_hex(preview.begin(), preview.end())
+        );
         return std::nullopt;
+    }
     }
 }
 }

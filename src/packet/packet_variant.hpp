@@ -177,6 +177,40 @@ public:
         }
     }
 
+    // Reads a SIGNED or UNSIGNED argument (servers are not consistent about
+    // which one they use); fallback when it is missing or not an integer.
+    [[nodiscard]] std::int64_t get_integer(const std::size_t index, const std::int64_t fallback = 0) const
+    {
+        if (index >= variants_.size()) {
+            return fallback;
+        }
+
+        if (const auto* value{ std::get_if<std::int32_t>(&variants_[index]) }) {
+            return *value;
+        }
+
+        if (const auto* value{ std::get_if<std::uint32_t>(&variants_[index]) }) {
+            return *value;
+        }
+
+        return fallback;
+    }
+
+    // Replaces an integer argument but keeps the variant type the server used.
+    void set_integer(const std::size_t index, const std::int64_t value)
+    {
+        if (index >= variants_.size()) {
+            return;
+        }
+
+        if (std::holds_alternative<std::uint32_t>(variants_[index])) {
+            variants_[index] = static_cast<std::uint32_t>(value);
+        }
+        else {
+            variants_[index] = static_cast<std::int32_t>(value);
+        }
+    }
+
     void set(const std::size_t index, const variant& value)
     {
         if (index >= variants_.size()) {

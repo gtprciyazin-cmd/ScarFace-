@@ -18,6 +18,7 @@ add_executable(GTProxy_tests
     packet/test_game_packets.cpp
     packet/test_packet_id.cpp
     packet/test_text_packets.cpp
+    packet/test_server_packets.cpp
     player/test_inventory.cpp
     player/test_staff.cpp
     utils/test_text_parse.cpp
