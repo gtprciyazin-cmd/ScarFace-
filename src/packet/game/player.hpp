@@ -26,18 +26,23 @@ struct OnNameChanged : VariantPacket<PacketId::OnNameChanged> {
             return false;
         }
 
+        // The renamed avatar is the call's target, carried in the header.
+        net_id = static_cast<int32_t>(game_packet.net_id);
         name = variant.get<std::string>(1);
         return true;
     }
 
     Payload write() override
     {
-        game_packet.net_id = net_id;
-        const PacketVariant variant{
-            "OnNameChanged",
-            name
-        };
-        return VariantPayload{ game_packet, variant };
+        game_packet.net_id = static_cast<uint32_t>(net_id);
+
+        // Keep any arguments the server added after the name.
+        PacketVariant out{ variant };
+        if (out.size() < 2) {
+            out = PacketVariant{ "OnNameChanged", name };
+        }
+        out.set(1, name);
+        return VariantPayload{ game_packet, out };
     }
 };
 

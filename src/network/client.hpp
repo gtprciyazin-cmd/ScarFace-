@@ -24,6 +24,10 @@ public:
 
     [[nodiscard]] bool is_connected() const override;
 
+    // Smoothed round trip time to the game server in milliseconds, measured by
+    // ENet from reliable packet acknowledgements. 0 while not connected.
+    [[nodiscard]] std::uint32_t round_trip_time() const;
+
     void flush() const;
 
 protected:

@@ -10,6 +10,8 @@
 #include "auto_collect_handler.hpp"
 #include "hotkey_handler.hpp"
 #include "pathfind_handler.hpp"
+#include "ping_name_handler.hpp"
+#include "spam_handler.hpp"
 #include "version_handler.hpp"
 #include "../../event/event.hpp"
 #include "../../network/server.hpp"
@@ -34,6 +36,8 @@ public:
         AutoCollectHandler& auto_collect,
         HotkeyHandler& hotkey,
         PathfindHandler& pathfind,
+        SpamHandler& spam,
+        PingNameHandler& ping_name,
         VersionHandler& version
     );
 
@@ -53,6 +57,8 @@ public:
     void open_fast_drop() const;
     void open_mod_alert() const;
     void open_pathfind() const;
+    void open_spam() const;
+    void open_ping() const;
 
 private:
     static constexpr const char* DIALOG_NAME{ "scarface_options" };
@@ -73,6 +79,8 @@ private:
     AutoCollectHandler& auto_collect_;
     HotkeyHandler& hotkey_;
     PathfindHandler& pathfind_;
+    SpamHandler& spam_;
+    PingNameHandler& ping_name_;
     VersionHandler& version_;
 
     event::ScopedHandle handle_;

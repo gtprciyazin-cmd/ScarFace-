@@ -1,5 +1,7 @@
 #pragma once
+#include <functional>
 #include <string>
+#include <tuple>
 #include <fmt/format.h>
 
 #include "../command.hpp"
@@ -12,6 +14,19 @@
 namespace command {
 class NickCommand final : public ICommand {
 public:
+    // Renames the local player and returns false when that is not possible.
+    using Renamer = std::function<bool(const std::string&)>;
+
+    NickCommand() = default;
+
+    // With a renamer the name goes through it (the ping display keeps it as
+    // the base name), otherwise it is sent to the game directly.
+    explicit NickCommand(Renamer renamer)
+        : renamer_{ std::move(renamer) }
+    {
+
+    }
+
     [[nodiscard]] std::string_view name() const override { return "nick"; }
     [[nodiscard]] std::string description() const override { return "Change your display name"; }
 
@@ -29,16 +44,29 @@ public:
             name += ' ' + ctx.args[i];
         }
 
-        packet::game::OnNameChanged pkt{};
-        pkt.net_id = world::World::instance().get_local_net_id();
-        pkt.name = name;
-        packet::PacketHelper::write(pkt, ctx.server);
+        if (renamer_) {
+            if (!renamer_(name)) {
+                packet::message::Log log{};
+                log.msg = "`4Enter a world first.";
+                std::ignore = packet::PacketHelper::write(log, ctx.server);
+                return Result::Failed;
+            }
+        }
+        else {
+            packet::game::OnNameChanged pkt{};
+            pkt.net_id = world::World::instance().get_local_net_id();
+            pkt.name = name;
+            std::ignore = packet::PacketHelper::write(pkt, ctx.server);
+        }
 
         packet::message::Log log{};
         log.msg = fmt::format("Display name changed to {}", name);
-        packet::PacketHelper::write(log, ctx.server);
+        std::ignore = packet::PacketHelper::write(log, ctx.server);
 
         return Result::Success;
     }
+
+private:
+    Renamer renamer_;
 };
 }

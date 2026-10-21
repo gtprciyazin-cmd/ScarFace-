@@ -14,6 +14,8 @@
 #include "../command/commands/world_action_command.hpp"
 #include "../command/commands/wrench_command.hpp"
 #include "../command/commands/proxy_menu_command.hpp"
+#include "../command/commands/nick_command.hpp"
+#include "../command/commands/spam_command.hpp"
 #include "../command/commands/count_command.hpp"
 #include "../command/commands/collect_key_command.hpp"
 #include "../command/commands/rmode_command.hpp"
@@ -60,7 +62,9 @@ Core::Core()
     fun_facts_handler_ = std::make_unique<handlers::FunFactsHandler>(scheduler_, *server_, config_);
     roulette_handler_ = std::make_unique<handlers::RouletteHandler>(dispatcher_, *server_, config_);
     mod_alert_handler_ = std::make_unique<handlers::ModAlertHandler>(dispatcher_, *server_, config_);
-    proxy_menu_handler_ = std::make_unique<handlers::ProxyMenuHandler>(dispatcher_, *server_, scheduler_, *quick_wrench_handler_, *roulette_handler_, *mod_alert_handler_, *fun_facts_handler_, *fast_drop_handler_, *auto_collect_handler_, *hotkey_handler_, *pathfind_handler_, *version_handler_);
+    spam_handler_ = std::make_unique<handlers::SpamHandler>(dispatcher_, scheduler_, *client_, *server_, config_);
+    ping_name_handler_ = std::make_unique<handlers::PingNameHandler>(dispatcher_, scheduler_, *client_, *server_, config_);
+    proxy_menu_handler_ = std::make_unique<handlers::ProxyMenuHandler>(dispatcher_, *server_, scheduler_, *quick_wrench_handler_, *roulette_handler_, *mod_alert_handler_, *fun_facts_handler_, *fast_drop_handler_, *auto_collect_handler_, *hotkey_handler_, *pathfind_handler_, *spam_handler_, *ping_name_handler_, *version_handler_);
     command_handler_ = std::make_unique<command::CommandHandler>(config_, dispatcher_, scheduler_, *server_, *client_);
     register_feature_commands();
 
@@ -125,6 +129,17 @@ void Core::register_feature_commands()
         [this] { return roulette_handler_->is_enabled(); },
         [this](const bool enabled) { roulette_handler_->set_enabled(enabled); }
     ));
+    registry.add(std::make_unique<command::SpamCommand>(*spam_handler_));
+    registry.add(std::make_unique<command::NickCommand>(
+        [this](const std::string& name) { return ping_name_handler_->rename(name); }
+    ));
+    registry.add(std::make_unique<command::ToggleCommand>(
+        "ping",
+        "Show your ping next to your name",
+        "Ping next to name",
+        [this] { return ping_name_handler_->is_enabled(); },
+        [this](const bool enabled) { ping_name_handler_->set_enabled(enabled); }
+    ));
     registry.add(std::make_unique<command::ToggleCommand>(
         "modalert",
         "Warn when a moderator is in the world",
@@ -145,6 +160,8 @@ void Core::register_feature_commands()
     registry.set_menu("count", menu(&handlers::ProxyMenuHandler::open_fast_drop));
     registry.set_menu("modalert", menu(&handlers::ProxyMenuHandler::open_mod_alert));
     registry.set_menu("pathfind", menu(&handlers::ProxyMenuHandler::open_pathfind));
+    registry.set_menu("spam", menu(&handlers::ProxyMenuHandler::open_spam));
+    registry.set_menu("ping", menu(&handlers::ProxyMenuHandler::open_ping));
 }
 
 Core::~Core()

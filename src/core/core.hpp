@@ -20,7 +20,9 @@
 #include "handlers/pathfind_handler.hpp"
 #include "handlers/fun_facts_handler.hpp"
 #include "handlers/version_handler.hpp"
+#include "handlers/ping_name_handler.hpp"
 #include "handlers/proxy_menu_handler.hpp"
+#include "handlers/spam_handler.hpp"
 #include "../command/command_handler.hpp"
 #include "../network/client.hpp"
 #include "../network/server.hpp"
@@ -72,6 +74,8 @@ private:
     std::unique_ptr<handlers::FunFactsHandler> fun_facts_handler_;
     std::unique_ptr<handlers::RouletteHandler> roulette_handler_;
     std::unique_ptr<handlers::ModAlertHandler> mod_alert_handler_;
+    std::unique_ptr<handlers::SpamHandler> spam_handler_;
+    std::unique_ptr<handlers::PingNameHandler> ping_name_handler_;
     std::unique_ptr<handlers::ProxyMenuHandler> proxy_menu_handler_;
     std::unique_ptr<command::CommandHandler> command_handler_;
 

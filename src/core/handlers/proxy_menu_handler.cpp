@@ -15,6 +15,7 @@
 #include "../../packet/message/chat.hpp"
 #include "../../packet/message/dialog_return.hpp"
 #include "../../packet/packet_helper.hpp"
+#include "../../utils/chat_text.hpp"
 #include "../../world/world.hpp"
 
 namespace core::handlers {
@@ -24,6 +25,72 @@ namespace {
     [[nodiscard]] std::string_view onoff(const bool enabled)
     {
         return enabled ? "1" : "0";
+    }
+
+    // Item ids whose icons stand for each feature in the menus.
+    namespace icons {
+        constexpr int SCARFACE{ 7188 };      // Blue Gem Lock
+        constexpr int AUTO_COLLECT{ 8304 };  // Magic Magnet
+        constexpr int SPAM{ 2480 };          // Megaphone
+        constexpr int PING{ 226 };           // Signal Jammer
+        constexpr int ROULETTE{ 758 };       // Roulette Wheel
+        constexpr int WRENCH{ 32 };          // Wrench
+        constexpr int FAST_DROP{ 242 };      // World Lock
+        constexpr int MOD_ALERT{ 2976 };     // Cybernetic Eye
+        constexpr int PATHFIND{ 6526 };      // Teleporter Charge
+        constexpr int FUN_FACTS{ 550 };      // Bookcase
+    }
+
+    struct Feature {
+        int icon;
+        std::string_view title;
+        std::string_view description;
+        std::string_view checkbox;
+        bool enabled;
+        // Button that opens the feature's own menu; null when it has none.
+        const char* settings_button;
+    };
+
+    [[nodiscard]] std::string ping_text(const std::uint32_t ping_ms)
+    {
+        return ping_ms == 0 ? std::string{ "`7-``" } : utils::format_ping(ping_ms);
+    }
+
+    // Scarface colours (dark panel, red frame), icon and name, a grey line
+    // under them, then a gap.
+    void add_header(std::string& d, const int icon, const std::string_view title, const std::string_view subtitle)
+    {
+        d += "set_bg_color|18,18,28,235|\n";
+        d += "set_border_color|200,40,40,255|\n";
+        d += "set_default_color|`o\n";
+        d += fmt::format("add_label_with_icon|big|`w{}``|left|{}|\n", title, icon);
+        if (!subtitle.empty()) {
+            d += fmt::format("add_smalltext|`s{}``|left|\n", subtitle);
+        }
+        d += "add_spacer|small|\n";
+    }
+
+    // One feature of the main menu: name and description side by side, the
+    // switch under them and, when it has more settings, a button to its menu.
+    void add_feature(std::string& d, const Feature& f)
+    {
+        d += fmt::format("add_label_with_icon|small|`w{}`` `s- {}``|left|{}|\n", f.title, f.description, f.icon);
+        d += fmt::format("add_checkbox|{}|`2Aktif``|{}\n", f.checkbox, onoff(f.enabled));
+        if (f.settings_button) {
+            d += fmt::format("add_button|{}|`9Ayarla``|noflags|0|0|\n", f.settings_button);
+        }
+        d += "add_spacer|small|\n";
+    }
+
+    // Detail menus get a button back to the main menu; Save applies either way.
+    void add_footer(std::string& d, const std::string_view dialog_name, const bool back_button)
+    {
+        if (back_button) {
+            d += "add_spacer|small|\n";
+            d += "add_button|menu_back|`wGeri``|noflags|0|0|\n";
+        }
+        d += "add_quick_exit|\n";
+        d += fmt::format("end_dialog|{}|Kapat|Kaydet|\n", dialog_name);
     }
 
     template <typename T>
@@ -50,6 +117,8 @@ ProxyMenuHandler::ProxyMenuHandler(
     AutoCollectHandler& auto_collect,
     HotkeyHandler& hotkey,
     PathfindHandler& pathfind,
+    SpamHandler& spam,
+    PingNameHandler& ping_name,
     VersionHandler& version
 )
     : dispatcher_{ dispatcher }
@@ -63,6 +132,8 @@ ProxyMenuHandler::ProxyMenuHandler(
     , auto_collect_{ auto_collect }
     , hotkey_{ hotkey }
     , pathfind_{ pathfind }
+    , spam_{ spam }
+    , ping_name_{ ping_name }
     , version_{ version }
 {
     handle_ = event::ScopedHandle{
@@ -74,28 +145,30 @@ ProxyMenuHandler::ProxyMenuHandler(
 
 std::string ProxyMenuHandler::build_dialog() const
 {
-    std::string d{};
-    d += "set_default_color|`o\n";
-    d += "add_label_with_icon|big|`wScarface Proxy``|left|32|\n";
+    std::string subtitle{ fmt::format("Ping: {}", ping_text(ping_name_.get_ping())) };
     if (const auto& gv{ version_.get_game_version() }; !gv.empty()) {
-        d += fmt::format("add_textbox|`oGrowtopia v{} `7(protocol {})``|left|\n", gv, version_.get_protocol());
+        subtitle = fmt::format("Growtopia v{} - {}", gv, subtitle);
     }
+
+    std::string d{};
+    add_header(d, icons::SCARFACE, "Scarface Proxy `9v3.0", subtitle);
+    d += "add_textbox|`oOzellikleri `2Aktif`` ile ac/kapat, `9Ayarla`` ile detaylarini degistir. Degisiklikler `wKaydet`` ile uygulanir.``|left|\n";
     d += "add_spacer|small|\n";
-    d += fmt::format("add_checkbox|cb_wrench|`wWrench Pull``|{}\n", onoff(quick_wrench_.is_enabled()));
-    d += fmt::format("add_checkbox|cb_spin|`wShow Real/Fake Spin``|{}\n", onoff(roulette_.is_enabled()));
-    d += fmt::format("add_checkbox|cb_modalert|`wAuto Mod Detect``|{}\n", onoff(mod_alert_.is_enabled()));
-    d += fmt::format("add_checkbox|cb_funfacts|`wShow Fun Facts``|{}\n", onoff(fun_facts_.is_enabled()));
-    d += fmt::format("add_checkbox|cb_fastdrop|`wFast Drop``|{}\n", onoff(fast_drop_.is_enabled()));
-    d += fmt::format("add_checkbox|cb_autocollect|`wAuto Collect``|{}\n", onoff(auto_collect_.is_enabled()));
-    d += fmt::format("add_checkbox|cb_pathfind|`wPathfind (click to teleport)``|{}\n", onoff(pathfind_.is_enabled()));
-    d += "add_spacer|small|\n";
-    d += "add_textbox|`oAyrintili ayarlar:``|left|\n";
-    d += "add_button|menu_autocollect|`wAuto Collect``|noflags|0|0|\n";
-    d += "add_button|menu_roulette|`wRulet``|noflags|0|0|\n";
-    d += "add_button|menu_wrench|`wWrench``|noflags|0|0|\n";
-    d += "add_button|menu_fastdrop|`wFast Drop``|noflags|0|0|\n";
-    d += "add_quick_exit|\n";
-    d += "end_dialog|scarface_options|Kapat|Kaydet|\n";
+
+    add_feature(d, { icons::AUTO_COLLECT, "Auto Collect", "Yere dusen esyalari otomatik toplar", "cb_autocollect", auto_collect_.is_enabled(), "menu_autocollect" });
+    add_feature(d, { icons::SPAM, "Spam", "Mesajini belirledigin aralikla atar", "cb_spam", spam_.is_enabled(), "menu_spam" });
+    add_feature(d, { icons::PING, "Ping", "Isminin yaninda pingini gosterir", "cb_ping", ping_name_.is_enabled(), "menu_ping" });
+    add_feature(d, { icons::ROULETTE, "Real/Fake Spin", "Rulet sonucunu erkenden gosterir", "cb_spin", roulette_.is_enabled(), "menu_roulette" });
+    add_feature(d, { icons::WRENCH, "Wrench Pull", "Wrench ile menusuz pull/kick/ban", "cb_wrench", quick_wrench_.is_enabled(), "menu_wrench" });
+    add_feature(d, { icons::FAST_DROP, "Fast Drop", "Drop penceresini sormadan atar", "cb_fastdrop", fast_drop_.is_enabled(), "menu_fastdrop" });
+    add_feature(d, { icons::MOD_ALERT, "Mod Alert", "Dunyaya mod girince uyarir", "cb_modalert", mod_alert_.is_enabled(), nullptr });
+    add_feature(d, { icons::PATHFIND, "Pathfind", "Tikladigin yere isinlar", "cb_pathfind", pathfind_.is_enabled(), nullptr });
+    add_feature(d, { icons::FUN_FACTS, "Fun Facts", "Konsola ilginc bilgiler yazar", "cb_funfacts", fun_facts_.is_enabled(), nullptr });
+
+    d += "add_label|small|`9Komutlar``|left|\n";
+    d += "add_smalltext|`s/daw: envanterdeki tum WL/DL/BGL'leri atar. /wd /dd /bd <adet>: kilit atar.``|left|\n";
+    d += "add_smalltext|`sBir ozelligin komutunu tek basina yazarsan (/spam, /ping, /autocollect...) menusu acilir.``|left|\n";
+    add_footer(d, DIALOG_NAME, false);
     return d;
 }
 
@@ -107,96 +180,120 @@ void ProxyMenuHandler::open() const
 void ProxyMenuHandler::open_auto_collect() const
 {
     std::string d{};
-    d += "set_default_color|`o\n";
-    d += "add_label_with_icon|big|`wAuto Collect``|left|112|\n";
+    add_header(d, icons::AUTO_COLLECT, "Auto Collect", "Yakindaki dusen esyalari otomatik toplar.");
+    d += fmt::format("add_checkbox|ac_enabled|`wAuto Collect acik``|{}\n", onoff(auto_collect_.is_enabled()));
     d += "add_spacer|small|\n";
-    d += fmt::format("add_checkbox|ac_enabled|`wAuto Collect``|{}\n", onoff(auto_collect_.is_enabled()));
     d += fmt::format(
         "add_text_input|ac_range|Menzil (blok, {:.0f}-{:.0f})|{:g}|4|\n",
         AutoCollectHandler::MIN_RANGE,
         AutoCollectHandler::MAX_RANGE,
         auto_collect_.get_range()
     );
+    d += "add_smalltext|`sKac blok uzaktaki esyalarin toplanacagi.``|left|\n";
     d += fmt::format(
         "add_text_input|ac_delay|Gecikme (ms, {}-{})|{}|5|\n",
         AutoCollectHandler::MIN_DELAY_MS,
         AutoCollectHandler::MAX_DELAY_MS,
         auto_collect_.get_delay_ms()
     );
-    d += "add_textbox|`o0 ms: yakindaki esyalari hemen toplar.``|left|\n";
+    d += "add_smalltext|`sIki toplama arasindaki bekleme. 0 ms: hepsini hemen toplar.``|left|\n";
     d += "add_spacer|small|\n";
     d += fmt::format("add_checkbox|ac_hotkey|`wKisayol tusu ile ac/kapat``|{}\n", onoff(hotkey_.is_enabled()));
-    d += fmt::format("add_text_input|ac_key|Kisayol tusu (F1-F12, A-Z, 0-9)|{}|6|\n", HotkeyHandler::name_from_key(hotkey_.get_key()));
-    d += "add_textbox|`oTus sadece Growtopia penceresi aktifken calisir.``|left|\n";
-    d += "add_quick_exit|\n";
-    d += "end_dialog|scarface_autocollect|Kapat|Kaydet|\n";
+    d += fmt::format("add_text_input|ac_key|Kisayol tusu|{}|6|\n", HotkeyHandler::name_from_key(hotkey_.get_key()));
+    d += "add_smalltext|`sF1-F12, A-Z ya da 0-9. Tus sadece Growtopia penceresi aktifken calisir.``|left|\n";
+    add_footer(d, "scarface_autocollect", true);
+    send_dialog(d);
+}
+
+void ProxyMenuHandler::open_spam() const
+{
+    std::string d{};
+    add_header(d, icons::SPAM, "Spam", "Yazdigin mesaji belirledigin aralikla sohbete atar.");
+    d += fmt::format(
+        "add_label|small|Durum: {}``|left|\n",
+        spam_.is_enabled() ? fmt::format("`2Calisiyor ({} sn)", spam_.get_interval()) : std::string{ "`4Kapali" }
+    );
+    d += "add_spacer|small|\n";
+    d += fmt::format("add_text_input|sp_text|Mesaj|{}|{}|\n", spam_.get_text(), SpamHandler::MAX_LENGTH);
+    d += fmt::format(
+        "add_text_input|sp_interval|Aralik (saniye, {}-{})|{}|4|\n",
+        SpamHandler::MIN_INTERVAL_S,
+        SpamHandler::MAX_INTERVAL_S,
+        spam_.get_interval()
+    );
+    d += "add_smalltext|`sSadece bir dunyanin icindeyken yazar. Sunucu spam uyarisi verirse kendiliginden durur.``|left|\n";
+    d += "add_smalltext|`sProxy kapaninca spam da kapanir; mesaj ve aralik kayitli kalir.``|left|\n";
+    d += "add_spacer|small|\n";
+    d += spam_.is_enabled()
+        ? "add_button|sp_toggle|`4DURDUR``|noflags|0|0|\n"
+        : "add_button|sp_toggle|`2BASLAT``|noflags|0|0|\n";
+    add_footer(d, "scarface_spam", true);
+    send_dialog(d);
+}
+
+void ProxyMenuHandler::open_ping() const
+{
+    std::string d{};
+    add_header(d, icons::PING, "Ping", fmt::format("Su anki ping: {}", ping_text(ping_name_.get_ping())));
+    d += fmt::format("add_checkbox|pg_enabled|`wIsminin yaninda ping goster``|{}\n", onoff(ping_name_.is_enabled()));
+    d += "add_smalltext|`sIsminin yanina sunucuya olan gecikmen yazilir ve 2 saniyede bir guncellenir.``|left|\n";
+    d += "add_smalltext|`2Yesil`` 100 ms alti, `9sari`` 200 ms alti, `4kirmizi`` daha yavas. `7Sadece sen gorursun.``|left|\n";
+    add_footer(d, "scarface_ping", true);
     send_dialog(d);
 }
 
 void ProxyMenuHandler::open_roulette() const
 {
     std::string d{};
-    d += "set_default_color|`o\n";
-    d += "add_label_with_icon|big|`wRulet``|left|758|\n";
-    d += "add_spacer|small|\n";
+    add_header(d, icons::ROULETTE, "Real/Fake Spin", "Rulet sonucunu carkin uzerinde erkenden gosterir.");
     d += fmt::format("add_checkbox|rl_enabled|`wSonucu erken goster``|{}\n", onoff(roulette_.is_enabled()));
-    d += fmt::format("add_text_input|rl_mode|Mod (real / reme / qq)|{}|4|\n", roulette_.mode_string());
-    d += "add_textbox|`oreal: sayi, reme: rakamlar toplami (32->5), qq: son rakam (27->7).``|left|\n";
-    d += "add_quick_exit|\n";
-    d += "end_dialog|scarface_roulette|Kapat|Kaydet|\n";
+    d += "add_spacer|small|\n";
+    d += fmt::format("add_text_input|rl_mode|Mod|{}|4|\n", roulette_.mode_string());
+    d += "add_smalltext|`sreal: sayinin kendisi, reme: rakamlar toplami (32 -> 5), qq: son rakam (27 -> 7).``|left|\n";
+    add_footer(d, "scarface_roulette", true);
     send_dialog(d);
 }
 
 void ProxyMenuHandler::open_wrench() const
 {
     std::string d{};
-    d += "set_default_color|`o\n";
-    d += "add_label_with_icon|big|`wWrench``|left|32|\n";
-    d += "add_spacer|small|\n";
+    add_header(d, icons::WRENCH, "Wrench Pull", "Oyuncuya wrench atinca islemi menusuz yapar.");
     d += fmt::format("add_checkbox|wr_enabled|`wWrench ile hizli islem``|{}\n", onoff(quick_wrench_.is_enabled()));
-    d += fmt::format("add_text_input|wr_action|Islem (pull / kick / ban)|{}|4|\n", QuickWrenchHandler::action_to_string(quick_wrench_.get_action()));
-    d += "add_textbox|`oAcikken dunyandaki bir oyuncuya wrench atinca bu islem menusuz yapilir.``|left|\n";
-    d += "add_quick_exit|\n";
-    d += "end_dialog|scarface_wrench|Kapat|Kaydet|\n";
+    d += "add_spacer|small|\n";
+    d += fmt::format("add_text_input|wr_action|Islem|{}|4|\n", QuickWrenchHandler::action_to_string(quick_wrench_.get_action()));
+    d += "add_smalltext|`spull, kick ya da ban. Sadece kendi kilitli dunyanda calisir.``|left|\n";
+    add_footer(d, "scarface_wrench", true);
     send_dialog(d);
 }
 
 void ProxyMenuHandler::open_fast_drop() const
 {
     std::string d{};
-    d += "set_default_color|`o\n";
-    d += "add_label_with_icon|big|`wFast Drop``|left|242|\n";
+    add_header(d, icons::FAST_DROP, "Fast Drop", "Drop penceresini sormadan esyayi atar.");
+    d += fmt::format("add_checkbox|fd_enabled|`wFast Drop acik``|{}\n", onoff(fast_drop_.is_enabled()));
     d += "add_spacer|small|\n";
-    d += fmt::format("add_checkbox|fd_enabled|`wFast Drop``|{}\n", onoff(fast_drop_.is_enabled()));
-    d += fmt::format("add_text_input|fd_amount|Miktar (0 = hepsi)|{}|3|\n", fast_drop_.get_amount());
-    d += "add_textbox|`oAcikken drop menusu sormadan bu kadarini atar.``|left|\n";
-    d += "add_quick_exit|\n";
-    d += "end_dialog|scarface_fastdrop|Kapat|Kaydet|\n";
+    d += fmt::format("add_text_input|fd_amount|Miktar|{}|3|\n", fast_drop_.get_amount());
+    d += "add_smalltext|`s0 yazarsan esyanin hepsini atar.``|left|\n";
+    add_footer(d, "scarface_fastdrop", true);
     send_dialog(d);
 }
 
 void ProxyMenuHandler::open_mod_alert() const
 {
     std::string d{};
-    d += "set_default_color|`o\n";
-    d += "add_label_with_icon|big|`wMod Alert``|left|278|\n";
-    d += "add_spacer|small|\n";
-    d += fmt::format("add_checkbox|ma_enabled|`wModerator / gorunmez oyuncu uyarisi``|{}\n", onoff(mod_alert_.is_enabled()));
-    d += "add_quick_exit|\n";
-    d += "end_dialog|scarface_modalert|Kapat|Kaydet|\n";
+    add_header(d, icons::MOD_ALERT, "Mod Alert", "Dunyaya moderator ya da gorunmez oyuncu girince uyarir.");
+    d += fmt::format("add_checkbox|ma_enabled|`wUyari acik``|{}\n", onoff(mod_alert_.is_enabled()));
+    add_footer(d, "scarface_modalert", true);
     send_dialog(d);
 }
 
 void ProxyMenuHandler::open_pathfind() const
 {
     std::string d{};
-    d += "set_default_color|`o\n";
-    d += "add_label_with_icon|big|`wPathfind``|left|1404|\n";
-    d += "add_spacer|small|\n";
+    add_header(d, icons::PATHFIND, "Pathfind", "Tikladigin yere isinlar.");
     d += fmt::format("add_checkbox|pf_enabled|`wTiklanan yere isinlan``|{}\n", onoff(pathfind_.is_enabled()));
-    d += "add_textbox|`oDeneysel: sunucu uzak isinlanmalari reddedebilir.``|left|\n";
-    d += "add_quick_exit|\n";
-    d += "end_dialog|scarface_pathfind|Kapat|Kaydet|\n";
+    d += "add_smalltext|`sDeneysel: sunucu uzak isinlanmalari reddedebilir.``|left|\n";
+    add_footer(d, "scarface_pathfind", true);
     send_dialog(d);
 }
 
@@ -270,11 +367,21 @@ void ProxyMenuHandler::on_dialog_return(const event::Event& event)
         apply("cb_fastdrop", fast_drop_);
         apply("cb_autocollect", auto_collect_);
         apply("cb_pathfind", pathfind_);
+        apply("cb_spam", spam_);
+        apply("cb_ping", ping_name_);
 
         // A button opens a detailed menu (the checkboxes above are kept).
         const auto button{ field("buttonClicked") };
         if (button == "menu_autocollect") {
             open_auto_collect();
+            return;
+        }
+        if (button == "menu_spam") {
+            open_spam();
+            return;
+        }
+        if (button == "menu_ping") {
+            open_ping();
             return;
         }
         if (button == "menu_roulette") {
@@ -289,6 +396,32 @@ void ProxyMenuHandler::on_dialog_return(const event::Event& event)
             open_fast_drop();
             return;
         }
+    }
+    else if (name == "scarface_spam") {
+        // Text and interval first, so starting uses the new message.
+        if (fields.contains("sp_text")) {
+            std::ignore = spam_.set_text(field("sp_text"));
+        }
+        if (const auto interval{ parse_number<int>(field("sp_interval")) }) {
+            std::ignore = spam_.set_interval(*interval);
+        }
+
+        if (field("buttonClicked") == "sp_toggle") {
+            const bool start{ !spam_.is_enabled() };
+            spam_.set_enabled(start);
+            if (start && !spam_.is_enabled()) {
+                return; // No message to send; set_enabled told the player.
+            }
+
+            spdlog::info("Proxy menu: spam {}", start ? "started" : "stopped");
+            send_log(spam_.is_enabled()
+                ? fmt::format("`2Spam basladi:`` her {} saniyede bir yazilacak.", spam_.get_interval())
+                : std::string{ "`4Spam durduruldu." });
+            return;
+        }
+    }
+    else if (name == "scarface_ping") {
+        apply("pg_enabled", ping_name_);
     }
     else if (name == "scarface_autocollect") {
         apply("ac_enabled", auto_collect_);
@@ -337,6 +470,11 @@ void ProxyMenuHandler::on_dialog_return(const event::Event& event)
     }
 
     spdlog::info("Proxy menu: {} applied", name);
+    if (name != DIALOG_NAME && field("buttonClicked") == "menu_back") {
+        open();
+        return;
+    }
+
     send_log("`2Scarface Proxy ayarlari kaydedildi.");
 }
 

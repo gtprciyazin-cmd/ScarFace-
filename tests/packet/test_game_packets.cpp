@@ -106,3 +106,34 @@ TEST(GamePacketTest, StateReadsPosition)
     EXPECT_FLOAT_EQ(pkt.pos_x, 96.0f);
     EXPECT_FLOAT_EQ(pkt.pos_y, 128.0f);
 }
+
+// The proxy re-sends the server's OnNameChanged with the ping added: the
+// renamed avatar (header net_id) and any extra arguments must survive.
+TEST(GamePacketTest, OnNameChangedKeepsTargetAndExtraArguments)
+{
+    GameUpdatePacket header{};
+    header.type = PACKET_CALL_FUNCTION;
+    header.net_id = 7;
+    const PacketVariant from_server{ std::string{ "OnNameChanged" }, std::string{ "`wPlayer``" }, std::string{ "extra" } };
+
+    game::OnNameChanged pkt{};
+    ASSERT_TRUE(pkt.read(VariantPayload{ header, from_server }));
+    EXPECT_EQ(pkt.net_id, 7);
+    EXPECT_EQ(pkt.name, "`wPlayer``");
+
+    pkt.name = "`wPlayer`` `2(45 ms)``";
+    const auto payload{ pkt.write() };
+    const auto* var{ std::get_if<VariantPayload>(&payload) };
+    ASSERT_NE(var, nullptr);
+    EXPECT_EQ(var->game_packet.net_id, 7u);
+    ASSERT_EQ(var->variant.size(), 3u);
+    EXPECT_EQ(var->variant.get<std::string>(1), "`wPlayer`` `2(45 ms)``");
+    EXPECT_EQ(var->variant.get<std::string>(2), "extra");
+
+    // Built by the proxy: just the call and the name.
+    game::OnNameChanged own{};
+    own.net_id = 3;
+    own.name = "Me";
+    const auto data{ PacketHelper::serialize(own) };
+    EXPECT_EQ(header_of(data).net_id, 3u);
+}

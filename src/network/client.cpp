@@ -168,6 +168,11 @@ bool Client::is_connected() const
     return peer_ && peer_->state == ENET_PEER_STATE_CONNECTED;
 }
 
+std::uint32_t Client::round_trip_time() const
+{
+    return is_connected() ? peer_->roundTripTime : 0;
+}
+
 void Client::flush() const
 {
     if (host_) {

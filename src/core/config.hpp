@@ -42,6 +42,9 @@ public:
         bool autocollect_keybind{ false };
         int autocollect_key{ 117 }; // Windows VK_F6
         bool pathfind{ false };
+        std::string spam_text{};
+        int spam_interval_s{ 10 };
+        bool ping_in_name{ true };
     };
 
     // Saved once the key is validated, so it is not asked for again.
