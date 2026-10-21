@@ -10,8 +10,14 @@ $ErrorActionPreference = 'Stop'
 Set-Location -LiteralPath $PSScriptRoot
 
 $python = '.venv\Scripts\python.exe'
-if (-not (Test-Path -LiteralPath $python) -or -not (Test-Path -LiteralPath 'keys.db')) {
-    Write-Host 'Önce kur.bat ile kurulumu yap.' -ForegroundColor Red
+if (-not (Test-Path -LiteralPath $python)) {
+    Write-Host 'Python ortamı (.venv) yok: önce kur.bat ile kurulumu yap.' -ForegroundColor Red
+    exit 1
+}
+if (-not (Test-Path -LiteralPath 'keys.db') -or -not (Test-Path -LiteralPath 'signing_key.pem')) {
+    Write-Host 'keys.db veya signing_key.pem bu klasörde yok.' -ForegroundColor Red
+    Write-Host 'Eski kurulumun klasöründen bu iki dosyayı buraya kopyala. Yeni anahtarla kurarsan' -ForegroundColor Yellow
+    Write-Host 'proxy exe''si eski public key ile derlendiği için yeni anahtarla yeniden derlenmeli.' -ForegroundColor Yellow
     exit 1
 }
 

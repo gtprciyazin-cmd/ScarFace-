@@ -133,6 +133,13 @@ $venvPython = Get-VenvPython
 if (Test-Packages $venvPython) {
     Write-Ok 'discord.py ve cryptography zaten kurulu.'
 }
+elseif (Test-Path -LiteralPath 'wheels') {
+    # Offline copy of the packages (wheels\ next to this script) for a VDS
+    # that cannot reach pypi.org.
+    & $venvPython -m pip install --disable-pip-version-check --quiet --no-index --find-links wheels -r requirements-bot.txt
+    if ($LASTEXITCODE -ne 0) { Stop-Setup 'Paketler wheels klasöründen kurulamadı (Python sürümün desteklenmiyor olabilir).' }
+    Write-Ok 'discord.py ve cryptography wheels klasöründen kuruldu.'
+}
 else {
     & $venvPython -m pip install --disable-pip-version-check --quiet --timeout 30 -r requirements-bot.txt
     if ($LASTEXITCODE -ne 0) {
