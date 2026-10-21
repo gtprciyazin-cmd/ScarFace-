@@ -52,3 +52,10 @@ TEST(ChatTextTest, NameWithPingKeepsTheLegendSuffixLast)
     EXPECT_EQ(name_with_ping("`9Player of Legend``", 45), "`9Player`` `2(45 ms)```9 of Legend``");
     EXPECT_TRUE(name_with_ping("`9Player of Legend``", 45).ends_with(" of Legend``"));
 }
+
+TEST(ChatTextTest, DecorateNameAddsAnySuffix)
+{
+    EXPECT_EQ(decorate_name("`wBob``", "`4[7]"), "`wBob```` `4[7]``");
+    EXPECT_EQ(decorate_name("`wBob``", ""), "`wBob``");
+    EXPECT_TRUE(decorate_name("`9Bob of Legend``", "`4[7]").ends_with(" of Legend``"));
+}

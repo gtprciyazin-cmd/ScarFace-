@@ -68,14 +68,17 @@ Core::Core()
     roulette_handler_ = std::make_unique<handlers::RouletteHandler>(dispatcher_, *server_, config_);
     mod_alert_handler_ = std::make_unique<handlers::ModAlertHandler>(dispatcher_, *server_, config_);
     spam_handler_ = std::make_unique<handlers::SpamHandler>(dispatcher_, scheduler_, *client_, *server_, config_);
-    ping_name_handler_ = std::make_unique<handlers::PingNameHandler>(dispatcher_, scheduler_, *client_, *server_, config_);
+    name_tag_handler_ = std::make_unique<handlers::NameTagHandler>(dispatcher_, scheduler_, *client_, *server_, config_);
+    roulette_handler_->on_real_spin([this](const std::int32_t net_id, const utils::roulette::SpinResult& spin, const std::int32_t delay_ms) {
+        name_tag_handler_->set_last_spin(net_id, spin.number, spin.color_code, std::chrono::milliseconds{ delay_ms });
+    });
     gem_drop_handler_ = std::make_unique<handlers::GemDropHandler>(dispatcher_, scheduler_, *server_, config_);
     entrance_color_handler_ = std::make_unique<handlers::EntranceColorHandler>(dispatcher_, *server_, config_);
     door_id_handler_ = std::make_unique<handlers::DoorIdHandler>(dispatcher_, *server_, config_);
     dice_handler_ = std::make_unique<handlers::DiceHandler>(dispatcher_, *server_, config_);
     fast_trash_handler_ = std::make_unique<handlers::FastTrashHandler>(dispatcher_, *client_, *server_, config_);
     auto_access_handler_ = std::make_unique<handlers::AutoAccessHandler>(dispatcher_, *client_, *server_, *dialog_interceptor_, config_);
-    proxy_menu_handler_ = std::make_unique<handlers::ProxyMenuHandler>(dispatcher_, *server_, scheduler_, *quick_wrench_handler_, *roulette_handler_, *mod_alert_handler_, *fun_facts_handler_, *fast_drop_handler_, *auto_collect_handler_, *hotkey_handler_, *pathfind_handler_, *spam_handler_, *ping_name_handler_, *version_handler_);
+    proxy_menu_handler_ = std::make_unique<handlers::ProxyMenuHandler>(dispatcher_, *server_, scheduler_, *quick_wrench_handler_, *roulette_handler_, *mod_alert_handler_, *fun_facts_handler_, *fast_drop_handler_, *auto_collect_handler_, *hotkey_handler_, *pathfind_handler_, *spam_handler_, *name_tag_handler_, *version_handler_);
     command_handler_ = std::make_unique<command::CommandHandler>(config_, dispatcher_, scheduler_, *server_, *client_);
     register_feature_commands();
     register_menu();
@@ -149,14 +152,14 @@ void Core::register_feature_commands()
         [this] { gem_drop_handler_->show_summary(); }
     ));
     registry.add(std::make_unique<command::NickCommand>(
-        [this](const std::string& name) { return ping_name_handler_->rename(name); }
+        [this](const std::string& name) { return name_tag_handler_->rename(name); }
     ));
     registry.add(std::make_unique<command::ToggleCommand>(
         "ping",
         "Show your ping next to your name",
         "Ping next to name",
-        [this] { return ping_name_handler_->is_enabled(); },
-        [this](const bool enabled) { ping_name_handler_->set_enabled(enabled); }
+        [this] { return name_tag_handler_->is_enabled(); },
+        [this](const bool enabled) { name_tag_handler_->set_enabled(enabled); }
     ));
     registry.add(std::make_unique<command::ToggleCommand>(
         "modalert",
@@ -223,8 +226,26 @@ void Core::register_menu()
     add("wrench", "`2Enable `9Wrench `#Pull",
         "Enables Fast Wrenching. You Can Select Modes In `2/wrench``.",
         toggle(*quick_wrench_handler_), "menu_wrench");
-    add("spin", "`9Show Real/Fake Spin",
+    add("reme", "`9Show REME Number Spin",
+        "Will Show Your REME Numbers Next To Original Spin. Pick REME/QQ With `9Ayarla``.",
+        std::pair{
+            std::function<bool()>{ [this] { return roulette_handler_->numbers_enabled(); } },
+            std::function<void(bool)>{ [this](const bool on) { roulette_handler_->set_numbers_enabled(on); } },
+        }, "menu_roulette");
+    add("spintags", "`9Show Real/Fake Spin",
         "Will Show You `2[REAL]`` and `4[FAKE]`` Roulette Wheel Spins.",
+        std::pair{
+            std::function<bool()>{ [this] { return roulette_handler_->tags_enabled(); } },
+            std::function<void(bool)>{ [this](const bool on) { roulette_handler_->set_tags_enabled(on); } },
+        });
+    add("lastspin", "`9Show Last Roulette Spin",
+        "Will Display Every Player's Last Roulette Wheel Spin Next To Their Name.",
+        std::pair{
+            std::function<bool()>{ [this] { return name_tag_handler_->spins_enabled(); } },
+            std::function<void(bool)>{ [this](const bool on) { name_tag_handler_->set_spins_enabled(on); } },
+        });
+    add("spin", "`9Show Instant Spin Result",
+        "Shows The Result Above The Spinner As Soon As The Wheel Is Hit, Before It Stops.",
         toggle(*roulette_handler_), "menu_roulette");
     add("dice", "`9Show Instant Dice Roll",
         "Will Show What A Dice Block Lands On As Soon As It Is Punched.",
@@ -233,7 +254,7 @@ void Core::register_menu()
     menu.add_section("Visuals");
     add("ping", "`9Show Ping Latency",
         "Will Display Your Ping Latency Next To Your Name.",
-        toggle(*ping_name_handler_), "menu_ping");
+        toggle(*name_tag_handler_), "menu_ping");
     add("gems", "`9Show Instant Dropped `2Gem`` `9Drop Count",
         "Will Display The Gem Count On A Tile Instantly After Spawning. (`2/gems`` To Display Again)",
         toggle(*gem_drop_handler_));

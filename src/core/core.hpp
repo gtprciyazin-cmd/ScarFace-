@@ -26,7 +26,7 @@
 #include "handlers/door_id_handler.hpp"
 #include "handlers/entrance_color_handler.hpp"
 #include "handlers/gem_drop_handler.hpp"
-#include "handlers/ping_name_handler.hpp"
+#include "handlers/name_tag_handler.hpp"
 #include "handlers/proxy_menu_handler.hpp"
 #include "handlers/spam_handler.hpp"
 #include "discord_presence.hpp"
@@ -86,7 +86,7 @@ private:
     std::unique_ptr<handlers::RouletteHandler> roulette_handler_;
     std::unique_ptr<handlers::ModAlertHandler> mod_alert_handler_;
     std::unique_ptr<handlers::SpamHandler> spam_handler_;
-    std::unique_ptr<handlers::PingNameHandler> ping_name_handler_;
+    std::unique_ptr<handlers::NameTagHandler> name_tag_handler_;
     std::unique_ptr<handlers::GemDropHandler> gem_drop_handler_;
     std::unique_ptr<handlers::EntranceColorHandler> entrance_color_handler_;
     std::unique_ptr<handlers::DoorIdHandler> door_id_handler_;

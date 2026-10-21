@@ -75,20 +75,34 @@ namespace utils {
     return fmt::format("`{}{} ms``", ping_colour(ping_ms), ping_ms);
 }
 
-// The player's name with the ping after it. `` first so a colour the name
-// leaves open does not tint the ping.
-[[nodiscard]] inline std::string name_with_ping(const std::string_view name, const std::uint32_t ping_ms)
+// The player's name with `suffix` after it ("`` " first, so a colour the
+// name leaves open does not tint the suffix). The client only shows the legend
+// flag while the name ends with " of Legend``", so for legends the suffix goes
+// in front of that, with the name's colour picked up again.
+[[nodiscard]] inline std::string decorate_name(const std::string_view name, const std::string_view suffix)
 {
-    const auto ping{ fmt::format("`` `{}({} ms)``", ping_colour(ping_ms), ping_ms) };
+    if (suffix.empty()) {
+        return std::string{ name };
+    }
 
-    // The client only shows the legend flag while the name ends with this, so
-    // the ping goes in front of it, with the name's colour picked up again.
+    const auto tail{ fmt::format("`` {}``", suffix) };
     constexpr std::string_view legend{ " of Legend``" };
     if (name.size() > legend.size() && name.ends_with(legend)) {
         const std::string_view colour{ name.size() >= 2 && name[0] == '`' ? name.substr(0, 2) : std::string_view{} };
-        return fmt::format("{}{}{}{}", name.substr(0, name.size() - legend.size()), ping, colour, legend);
+        return fmt::format("{}{}{}{}", name.substr(0, name.size() - legend.size()), tail, colour, legend);
     }
 
-    return fmt::format("{}{}", name, ping);
+    return fmt::format("{}{}", name, tail);
+}
+
+// "`2(45 ms)" in the colour for that ping.
+[[nodiscard]] inline std::string ping_suffix(const std::uint32_t ping_ms)
+{
+    return fmt::format("`{}({} ms)", ping_colour(ping_ms), ping_ms);
+}
+
+[[nodiscard]] inline std::string name_with_ping(const std::string_view name, const std::uint32_t ping_ms)
+{
+    return decorate_name(name, ping_suffix(ping_ms));
 }
 }

@@ -94,7 +94,7 @@ ProxyMenuHandler::ProxyMenuHandler(
     HotkeyHandler& hotkey,
     PathfindHandler& pathfind,
     SpamHandler& spam,
-    PingNameHandler& ping_name,
+    NameTagHandler& ping_name,
     VersionHandler& version
 )
     : dispatcher_{ dispatcher }

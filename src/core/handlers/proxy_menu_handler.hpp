@@ -13,7 +13,7 @@
 #include "auto_collect_handler.hpp"
 #include "hotkey_handler.hpp"
 #include "pathfind_handler.hpp"
-#include "ping_name_handler.hpp"
+#include "name_tag_handler.hpp"
 #include "spam_handler.hpp"
 #include "version_handler.hpp"
 #include "../../event/event.hpp"
@@ -40,7 +40,7 @@ public:
         HotkeyHandler& hotkey,
         PathfindHandler& pathfind,
         SpamHandler& spam,
-        PingNameHandler& ping_name,
+        NameTagHandler& ping_name,
         VersionHandler& version
     );
 
@@ -108,7 +108,7 @@ private:
     HotkeyHandler& hotkey_;
     PathfindHandler& pathfind_;
     SpamHandler& spam_;
-    PingNameHandler& ping_name_;
+    NameTagHandler& ping_name_;
     VersionHandler& version_;
 
     std::vector<Section> sections_;

@@ -4,6 +4,7 @@
 #include <cctype>
 #include <string>
 #include <tuple>
+#include <optional>
 #include <type_traits>
 
 #include <fmt/format.h>
@@ -11,6 +12,7 @@
 
 #include "../../packet/game/message.hpp"
 #include "../../world/player_finder.hpp"
+#include "../../player/player.hpp"
 #include "../../world/world.hpp"
 #include "../../packet/message/chat.hpp"
 #include "../../packet/packet_helper.hpp"
@@ -26,6 +28,8 @@ RouletteHandler::RouletteHandler(event::Dispatcher& dispatcher, network::Server&
 {
     listen<packet::PacketId::OnTalkBubble, packet::game::OnTalkBubble>();
     listen<packet::PacketId::OnConsoleMessage, packet::game::OnConsoleMessage>();
+    decorate<packet::PacketId::OnTalkBubble, packet::game::OnTalkBubble>();
+    decorate<packet::PacketId::OnConsoleMessage, packet::game::OnConsoleMessage>();
 
     // Spin history is per world.
     constexpr auto join_type{ event::packet_event_type(packet::PacketId::JoinRequest) };
@@ -47,6 +51,97 @@ void RouletteHandler::set_enabled(const bool enabled)
 
     config_.get_feature_config().roulette = enabled;
     std::ignore = config_.save();
+}
+
+void RouletteHandler::set_tags_enabled(const bool enabled)
+{
+    config_.get_feature_config().spin_tags = enabled;
+    std::ignore = config_.save();
+}
+
+void RouletteHandler::set_numbers_enabled(const bool enabled)
+{
+    config_.get_feature_config().reme_numbers = enabled;
+    std::ignore = config_.save();
+}
+
+std::string RouletteHandler::mode_number(const int number) const
+{
+    switch (mode_) {
+    case Mode::Real: return fmt::format("`5[REAL:{}]``", number);
+    case Mode::Qq: return fmt::format("`5[QQ:{}]``", number % 10);
+    case Mode::Reme:
+    default: return fmt::format("`5[REME:{}]``", utils::roulette::reme(number));
+    }
+}
+
+template <packet::PacketId Id, typename Packet>
+void RouletteHandler::decorate()
+{
+    // Lowest: the observers above (history, early bubble, name tags) read the
+    // server's own packet first; cancelling here does not hide it from them.
+    constexpr auto type{ event::packet_event_type(Id) };
+    handles_.emplace_back(
+        dispatcher_,
+        type,
+        dispatcher_.append_listener(type, [this](const event::Event& event) {
+            if (!tags_enabled() && !numbers_enabled()) {
+                return;
+            }
+
+            const auto evt{ dynamic_cast<const event::TypedPacketEvent<Id>*>(&event) };
+            if (!evt || evt->direction != event::Direction::ClientBound) {
+                return;
+            }
+
+            const auto pkt{ evt->template get<Packet>() };
+            if (!pkt) {
+                return;
+            }
+
+            const auto spin{ utils::roulette::parse_spin_message(pkt->text) };
+            if (!spin) {
+                return;
+            }
+
+            std::optional<std::string> owner{};
+            if constexpr (std::is_same_v<Packet, packet::game::OnTalkBubble>) {
+                if (const auto player{ world::World::instance().get_player(pkt->net_id).lock() }) {
+                    owner = player->name();
+                }
+            }
+            const bool real{ utils::roulette::is_real_spin(
+                pkt->text,
+                packet::game::variant_delay(pkt->game_packet),
+                owner ? std::optional<std::string_view>{ *owner } : std::nullopt
+            ) };
+
+            std::string text{ pkt->text };
+            if (tags_enabled()) {
+                text = utils::roulette::tag_message(text, real ? "`2[REAL]``" : "`4[FAKE]``");
+            }
+            if (numbers_enabled() && real) {
+                text += " " + mode_number(spin->number);
+            }
+            if (text == pkt->text) {
+                return;
+            }
+
+            // Same arguments, types and display delay; only the text changes.
+            constexpr std::size_t text_index{ std::is_same_v<Packet, packet::game::OnTalkBubble> ? 2 : 1 };
+            auto out{ pkt->variant };
+            if (out.size() <= text_index) {
+                return;
+            }
+            out.set(text_index, text);
+
+            auto data{ packet::PacketHelper::serialize(packet::VariantPayload{ pkt->game_packet, out }) };
+            data.push_back(std::byte{ 0 });
+            if (server_.write(data)) {
+                evt->cancel();
+            }
+        }, event::Priority::Lowest)
+    );
 }
 
 void RouletteHandler::set_mode(const Mode mode)
@@ -140,7 +235,7 @@ void RouletteHandler::on_message(const std::string_view text, const std::int32_t
 
     spdlog::info("Roulette: {} spun {} (display delay {} ms)", spin->spinner, spin->number, delay);
 
-    if (delay <= 0) {
+    if (delay <= 0 || utils::roulette::is_player_text(text)) {
         return;
     }
 
@@ -156,6 +251,10 @@ void RouletteHandler::on_message(const std::string_view text, const std::int32_t
     history_.push_front(SpinRecord{ spin->spinner, spin->number, spin->color_code, now });
     if (history_.size() > MAX_HISTORY) {
         history_.pop_back();
+    }
+
+    if (spin_listener_) {
+        spin_listener_(find_spinner(spin->spinner, spinner_net_id), *spin, delay);
     }
 
     if (!enabled_) {

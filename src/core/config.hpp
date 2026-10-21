@@ -51,6 +51,9 @@ public:
         bool instant_dice{ true };
         bool fast_trash{ false };
         bool auto_access{ false };
+        bool spin_tags{ true };
+        bool reme_numbers{ true };
+        bool last_spin_names{ false };
     };
 
     // Discord Rich Presence. The application id picks the Discord app whose
