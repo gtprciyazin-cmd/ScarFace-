@@ -74,6 +74,17 @@ function Find-Python {
     return $null
 }
 
+function Test-Packages([string]$pythonExe) {
+    # Native stderr under ErrorActionPreference=Stop throws in Windows PowerShell 5.1.
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        & $pythonExe -c 'import discord, cryptography' 2>&1 | Out-Null
+        return $LASTEXITCODE -eq 0
+    }
+    finally { $ErrorActionPreference = $previous }
+}
+
 function Get-VenvPython {
     foreach ($path in @('.venv\Scripts\python.exe', '.venv/bin/python')) {
         if (Test-Path -LiteralPath $path) { return $path }
@@ -117,9 +128,19 @@ if (-not (Get-VenvPython)) {
     if ($LASTEXITCODE -ne 0) { Stop-Setup 'Sanal ortam (.venv) oluşturulamadı.' }
 }
 $venvPython = Get-VenvPython
-& $venvPython -m pip install --disable-pip-version-check --quiet -r requirements-bot.txt
-if ($LASTEXITCODE -ne 0) { Stop-Setup 'Paketler kurulamadı, internet bağlantını kontrol et.' }
-Write-Ok 'discord.py ve cryptography kuruldu.'
+# Running setup again must not need pypi.org: skip pip when the packages are
+# already there (a VDS without outside access used to hang here).
+if (Test-Packages $venvPython) {
+    Write-Ok 'discord.py ve cryptography zaten kurulu.'
+}
+else {
+    & $venvPython -m pip install --disable-pip-version-check --quiet --timeout 30 -r requirements-bot.txt
+    if ($LASTEXITCODE -ne 0) {
+        Stop-Setup ("Paketler kurulamadı: pypi.org'a ulaşılamıyor. VDS'in internetini kontrol et:" +
+            ' Test-NetConnection pypi.org -Port 443')
+    }
+    Write-Ok 'discord.py ve cryptography kuruldu.'
+}
 
 # --- Key server -----------------------------------------------------------------
 
