@@ -45,9 +45,10 @@ public:
 
         if (sub_cmd == "status") {
             send_log(ctx, fmt::format(
-                "Auto collect is {}`` (range: {:.1f} tiles)",
+                "Auto collect is {}`` (range: {:.1f} tiles, delay: {} ms)",
                 handler_.is_enabled() ? "`2ON" : "`4OFF",
-                handler_.get_range()
+                handler_.get_range(),
+                handler_.get_delay_ms()
             ));
             return Result::Success;
         }
@@ -72,7 +73,27 @@ public:
             return Result::Success;
         }
 
-        send_log(ctx, fmt::format("`4Usage: ``{}autocollect [on|off|status|range <tiles>]", ctx.registry.prefix()));
+        if (sub_cmd == "delay") {
+            int delay{ 0 };
+            const std::string arg{ ctx.args.size() > 1 ? ctx.args[1] : "" };
+            if (
+                auto [ptr, ec]{ std::from_chars(arg.data(), arg.data() + arg.size(), delay) };
+                arg.empty() || ec != std::errc{} || ptr != arg.data() + arg.size()
+            ) {
+                send_log(ctx, fmt::format(
+                    "`4Usage: ``{}autocollect delay <{}-{}> (ms)",
+                    ctx.registry.prefix(),
+                    core::handlers::AutoCollectHandler::MIN_DELAY_MS,
+                    core::handlers::AutoCollectHandler::MAX_DELAY_MS
+                ));
+                return Result::InvalidArguments;
+            }
+
+            send_log(ctx, fmt::format("Auto collect delay set to {} ms", handler_.set_delay_ms(delay)));
+            return Result::Success;
+        }
+
+        send_log(ctx, fmt::format("`4Usage: ``{}autocollect [on|off|status|range <tiles>|delay <ms>]", ctx.registry.prefix()));
         return Result::InvalidArguments;
     }
 

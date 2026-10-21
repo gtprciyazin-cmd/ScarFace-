@@ -1,26 +1,31 @@
 #pragma once
 #include <chrono>
 #include <cstdint>
+#include <memory>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
 #include "../config.hpp"
+#include "../scheduler.hpp"
 #include "../../event/event.hpp"
 #include "../../network/client.hpp"
 
 namespace core::handlers {
 // Picks up dropped objects near the local player by sending the same
 // ITEM_ACTIVATE_OBJECT_REQUEST the client sends when it walks over a drop.
-// Runs whenever the player moves or something is dropped, so it never needs
-// its own timer and always runs on the main thread.
+// Runs whenever the player moves or something is dropped, always on the main
+// thread. With a delay set, requests are spaced out and a timer picks up what
+// is still waiting even while the player stands still.
 class AutoCollectHandler {
 public:
     static constexpr float DEFAULT_RANGE{ 2.0f };
     static constexpr float MIN_RANGE{ 1.0f };
     static constexpr float MAX_RANGE{ 5.0f };
+    static constexpr int MIN_DELAY_MS{ 0 };
+    static constexpr int MAX_DELAY_MS{ 5000 };
 
-    AutoCollectHandler(event::Dispatcher& dispatcher, network::Client& client, Config& config);
+    AutoCollectHandler(event::Dispatcher& dispatcher, network::Client& client, std::shared_ptr<Scheduler> scheduler, Config& config);
 
     AutoCollectHandler(const AutoCollectHandler&) = delete;
     AutoCollectHandler& operator=(const AutoCollectHandler&) = delete;
@@ -34,6 +39,11 @@ public:
     [[nodiscard]] float get_range() const { return range_; }
     // Clamps to [MIN_RANGE, MAX_RANGE] and returns the range actually used.
     float set_range(float range_tiles);
+
+    // Minimum time between two pickup requests; 0 sends them right away.
+    [[nodiscard]] int get_delay_ms() const { return delay_ms_; }
+    // Clamps to [MIN_DELAY_MS, MAX_DELAY_MS] and returns the delay actually used.
+    int set_delay_ms(int delay_ms);
 
     // Sends pickup requests for drops in range. Returns how many were sent.
     std::size_t collect_nearby();
@@ -59,13 +69,19 @@ private:
     void listen(event::Direction direction, Func&& func);
     void track_new_drop(std::uint16_t item_id);
     void reset();
+    // Runs collect_nearby() again after `wait`, once (later calls are merged).
+    void schedule_pass(std::chrono::milliseconds wait);
 
     event::Dispatcher& dispatcher_;
     network::Client& client_;
+    std::shared_ptr<Scheduler> scheduler_;
     Config& config_;
 
     bool enabled_{ false };
     float range_{ DEFAULT_RANGE };
+    int delay_ms_{ 0 };
+    std::chrono::steady_clock::time_point last_request_{};
+    bool pass_scheduled_{ false };
     std::unordered_map<std::uint32_t, Attempt> attempts_;
     std::unordered_map<std::uint16_t, std::chrono::steady_clock::time_point> ignore_until_;
     std::unordered_set<std::uint32_t> ignored_objects_;

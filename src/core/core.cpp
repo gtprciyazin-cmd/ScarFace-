@@ -50,7 +50,7 @@ Core::Core()
     world_handler_ = std::make_unique<handlers::WorldHandler>(dispatcher_);
     dialog_interceptor_ = std::make_unique<handlers::DialogInterceptor>(dispatcher_, scheduler_);
     inventory_handler_ = std::make_unique<handlers::InventoryHandler>(dispatcher_);
-    auto_collect_handler_ = std::make_unique<handlers::AutoCollectHandler>(dispatcher_, *client_, config_);
+    auto_collect_handler_ = std::make_unique<handlers::AutoCollectHandler>(dispatcher_, *client_, scheduler_, config_);
     hotkey_handler_ = std::make_unique<handlers::HotkeyHandler>(scheduler_, *auto_collect_handler_, *server_, config_);
     pathfind_handler_ = std::make_unique<handlers::PathfindHandler>(dispatcher_, *client_, *server_, config_);
     drop_handler_ = std::make_unique<handlers::DropHandler>(*client_, *server_, *dialog_interceptor_, *auto_collect_handler_);
@@ -132,6 +132,19 @@ void Core::register_feature_commands()
         [this] { return mod_alert_handler_->is_enabled(); },
         [this](const bool enabled) { mod_alert_handler_->set_enabled(enabled); }
     ));
+
+    // Typed without arguments, these open their settings menu.
+    const auto menu{ [this](void (handlers::ProxyMenuHandler::*open)() const) {
+        return [this, open] { (proxy_menu_handler_.get()->*open)(); };
+    } };
+    registry.set_menu("autocollect", menu(&handlers::ProxyMenuHandler::open_auto_collect));
+    registry.set_menu("collectkey", menu(&handlers::ProxyMenuHandler::open_auto_collect));
+    registry.set_menu("roulette", menu(&handlers::ProxyMenuHandler::open_roulette));
+    registry.set_menu("rmode", menu(&handlers::ProxyMenuHandler::open_roulette));
+    registry.set_menu("wrench", menu(&handlers::ProxyMenuHandler::open_wrench));
+    registry.set_menu("count", menu(&handlers::ProxyMenuHandler::open_fast_drop));
+    registry.set_menu("modalert", menu(&handlers::ProxyMenuHandler::open_mod_alert));
+    registry.set_menu("pathfind", menu(&handlers::ProxyMenuHandler::open_pathfind));
 }
 
 Core::~Core()

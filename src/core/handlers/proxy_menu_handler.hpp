@@ -14,9 +14,10 @@
 #include "../../network/server.hpp"
 
 namespace core::handlers {
-// Backs the "/proxy" options menu: sends an in-game dialog with a checkbox per
-// feature and applies the toggles when the player presses Save. Each toggle is
-// forwarded to the feature's own handler, which saves it to config.json.
+// Backs the in-game settings menus: "/proxy" (every feature on one page, with
+// buttons to the detailed menus) and one menu per feature, opened by typing the
+// feature's command without arguments. Values are applied when the player
+// presses Save and each feature's handler saves them to config.json.
 class ProxyMenuHandler {
 public:
     ProxyMenuHandler(
@@ -39,14 +40,23 @@ public:
     ProxyMenuHandler& operator=(ProxyMenuHandler&&) noexcept = delete;
     ~ProxyMenuHandler() = default;
 
-    // Shows the options dialog to the player.
+    // Shows the main options dialog to the player.
     void open() const;
+
+    // Per-feature menus.
+    void open_auto_collect() const;
+    void open_roulette() const;
+    void open_wrench() const;
+    void open_fast_drop() const;
+    void open_mod_alert() const;
+    void open_pathfind() const;
 
 private:
     static constexpr const char* DIALOG_NAME{ "scarface_options" };
 
     void on_dialog_return(const event::Event& event);
     [[nodiscard]] std::string build_dialog() const;
+    void send_dialog(const std::string& dialog) const;
     void send_log(const std::string& msg) const;
 
     event::Dispatcher& dispatcher_;

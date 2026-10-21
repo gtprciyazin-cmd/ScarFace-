@@ -9,12 +9,19 @@
 #include "../../world/world.hpp"
 
 namespace core::handlers {
-AutoCollectHandler::AutoCollectHandler(event::Dispatcher& dispatcher, network::Client& client, Config& config)
+AutoCollectHandler::AutoCollectHandler(
+    event::Dispatcher& dispatcher,
+    network::Client& client,
+    std::shared_ptr<Scheduler> scheduler,
+    Config& config
+)
     : dispatcher_{ dispatcher }
     , client_{ client }
+    , scheduler_{ std::move(scheduler) }
     , config_{ config }
     , enabled_{ config.get_feature_config().auto_collect }
     , range_{ std::clamp(config.get_feature_config().auto_collect_range, MIN_RANGE, MAX_RANGE) }
+    , delay_ms_{ std::clamp(config.get_feature_config().auto_collect_delay_ms, MIN_DELAY_MS, MAX_DELAY_MS) }
 {
     setup_handlers();
 }
@@ -35,6 +42,36 @@ float AutoCollectHandler::set_range(const float range_tiles)
     config_.get_feature_config().auto_collect_range = range_;
     std::ignore = config_.save();
     return range_;
+}
+
+int AutoCollectHandler::set_delay_ms(const int delay_ms)
+{
+    delay_ms_ = std::clamp(delay_ms, MIN_DELAY_MS, MAX_DELAY_MS);
+
+    config_.get_feature_config().auto_collect_delay_ms = delay_ms_;
+    std::ignore = config_.save();
+    return delay_ms_;
+}
+
+void AutoCollectHandler::schedule_pass(const std::chrono::milliseconds wait)
+{
+    if (pass_scheduled_) {
+        return;
+    }
+
+    pass_scheduled_ = true;
+    // Scheduler callbacks run on a worker thread; hop back to the main thread.
+    const auto scheduler{ scheduler_.get() };
+    scheduler_->schedule_delayed(
+        [this, scheduler] {
+            scheduler->post_to_main_thread([this] {
+                pass_scheduled_ = false;
+                std::ignore = collect_nearby();
+            });
+        },
+        wait,
+        "autocollect"
+    );
 }
 
 std::size_t AutoCollectHandler::collect_nearby()
@@ -61,9 +98,22 @@ std::size_t AutoCollectHandler::collect_nearby()
     const glm::vec2 position{ local_player->position() };
     const auto now{ std::chrono::steady_clock::now() };
 
+    // With a delay, one request per pass and never sooner than the delay; a
+    // timer comes back for whatever is still in range.
+    const std::chrono::milliseconds delay{ delay_ms_ };
+    const std::size_t max_requests{ delay_ms_ > 0 ? 1 : MAX_REQUESTS_PER_PASS };
+
     std::size_t sent{ 0 };
     for (const auto* object : world::find_objects_in_range(objects, position, range_)) {
-        if (sent >= MAX_REQUESTS_PER_PASS) {
+        if (sent >= max_requests) {
+            if (delay_ms_ > 0) {
+                schedule_pass(delay);
+            }
+            break;
+        }
+
+        if (delay_ms_ > 0 && now - last_request_ < delay) {
+            schedule_pass(std::chrono::ceil<std::chrono::milliseconds>(delay - (now - last_request_)));
             break;
         }
 
@@ -93,6 +143,7 @@ std::size_t AutoCollectHandler::collect_nearby()
 
         ++attempt.count;
         attempt.last_sent = now;
+        last_request_ = now;
         ++sent;
 
         spdlog::debug(

@@ -11,6 +11,11 @@ void CommandRegistry::add(std::unique_ptr<ICommand> cmd)
     commands_[std::move(key)] = std::move(cmd);
 }
 
+void CommandRegistry::set_menu(const std::string& name, std::function<void()> open_menu)
+{
+    menus_[name] = std::move(open_menu);
+}
+
 ICommand* CommandRegistry::get(std::string_view name) const
 {
     if (const auto it = commands_.find(std::string(name)); it != commands_.end()) {
@@ -53,6 +58,11 @@ bool CommandRegistry::execute(
     auto* cmd = get(name);
     if (!cmd) {
         return false;
+    }
+
+    if (const auto menu{ menus_.find(name) }; args.empty() && menu != menus_.end() && menu->second) {
+        menu->second();
+        return true;
     }
 
     const Context ctx{

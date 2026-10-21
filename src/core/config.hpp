@@ -30,6 +30,7 @@ public:
     struct FeatureConfig {
         bool auto_collect{ false };
         float auto_collect_range{ 2.0f };
+        int auto_collect_delay_ms{ 0 };
         bool roulette{ true };
         std::string roulette_mode{ "reme" };
         bool mod_alert{ true };

@@ -1,4 +1,5 @@
 #pragma once
+#include <functional>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -26,6 +27,10 @@ public:
 
     [[nodiscard]] ICommand* get(std::string_view name) const;
 
+    // A command with a settings menu opens it when typed without arguments;
+    // with arguments it runs as usual (e.g. "/autocollect on").
+    void set_menu(const std::string& name, std::function<void()> open_menu);
+
     [[nodiscard]] std::vector<std::pair<std::string, std::string>> get_all_commands() const;
 
     [[nodiscard]] bool is_command(std::string_view input) const;
@@ -46,5 +51,6 @@ private:
 private:
     char prefix_;
     std::unordered_map<std::string, std::unique_ptr<ICommand>> commands_;
+    std::unordered_map<std::string, std::function<void()>> menus_;
 };
 }
