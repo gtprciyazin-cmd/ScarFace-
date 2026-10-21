@@ -11,6 +11,7 @@
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>
 
+#include "../branding.hpp"
 #include "../../packet/game/dialog.hpp"
 #include "../../packet/message/chat.hpp"
 #include "../../packet/message/dialog_return.hpp"
@@ -41,43 +42,18 @@ namespace {
         constexpr int FUN_FACTS{ 550 };      // Bookcase
     }
 
-    struct Feature {
-        int icon;
-        std::string_view title;
-        std::string_view description;
-        std::string_view checkbox;
-        bool enabled;
-        // Button that opens the feature's own menu; null when it has none.
-        const char* settings_button;
-    };
-
     [[nodiscard]] std::string ping_text(const std::uint32_t ping_ms)
     {
         return ping_ms == 0 ? std::string{ "`7-``" } : utils::format_ping(ping_ms);
     }
 
-    // Scarface colours (dark panel, red frame), icon and name, a grey line
-    // under them, then a gap.
+    // Icon and name, a grey line under them, then a gap.
     void add_header(std::string& d, const int icon, const std::string_view title, const std::string_view subtitle)
     {
-        d += "set_bg_color|18,18,28,235|\n";
-        d += "set_border_color|200,40,40,255|\n";
         d += "set_default_color|`o\n";
         d += fmt::format("add_label_with_icon|big|`w{}``|left|{}|\n", title, icon);
         if (!subtitle.empty()) {
             d += fmt::format("add_smalltext|`s{}``|left|\n", subtitle);
-        }
-        d += "add_spacer|small|\n";
-    }
-
-    // One feature of the main menu: name and description side by side, the
-    // switch under them and, when it has more settings, a button to its menu.
-    void add_feature(std::string& d, const Feature& f)
-    {
-        d += fmt::format("add_label_with_icon|small|`w{}`` `s- {}``|left|{}|\n", f.title, f.description, f.icon);
-        d += fmt::format("add_checkbox|{}|`2Aktif``|{}\n", f.checkbox, onoff(f.enabled));
-        if (f.settings_button) {
-            d += fmt::format("add_button|{}|`9Ayarla``|noflags|0|0|\n", f.settings_button);
         }
         d += "add_spacer|small|\n";
     }
@@ -136,6 +112,17 @@ ProxyMenuHandler::ProxyMenuHandler(
     , ping_name_{ ping_name }
     , version_{ version }
 {
+    settings_menus_ = {
+        { "menu_autocollect", [this] { open_auto_collect(); } },
+        { "menu_spam", [this] { open_spam(); } },
+        { "menu_ping", [this] { open_ping(); } },
+        { "menu_roulette", [this] { open_roulette(); } },
+        { "menu_wrench", [this] { open_wrench(); } },
+        { "menu_fastdrop", [this] { open_fast_drop(); } },
+        { "menu_modalert", [this] { open_mod_alert(); } },
+        { "menu_pathfind", [this] { open_pathfind(); } },
+    };
+
     handle_ = event::ScopedHandle{
         dispatcher_,
         dialog_return_type,
@@ -143,31 +130,61 @@ ProxyMenuHandler::ProxyMenuHandler(
     };
 }
 
+void ProxyMenuHandler::add_section(std::string title)
+{
+    sections_.push_back({ std::move(title), {} });
+}
+
+void ProxyMenuHandler::add_toggle(Toggle toggle)
+{
+    if (sections_.empty()) {
+        add_section("");
+    }
+    sections_.back().toggles.push_back(std::move(toggle));
+}
+
+bool ProxyMenuHandler::open_settings(const std::string& button) const
+{
+    if (const auto it{ settings_menus_.find(button) }; it != settings_menus_.end()) {
+        it->second();
+        return true;
+    }
+    return false;
+}
+
 std::string ProxyMenuHandler::build_dialog() const
 {
     std::string subtitle{ fmt::format("Ping: {}", ping_text(ping_name_.get_ping())) };
     if (const auto& gv{ version_.get_game_version() }; !gv.empty()) {
-        subtitle = fmt::format("Growtopia v{} - {}", gv, subtitle);
+        subtitle = fmt::format("Growtopia v{}  -  {}", gv, subtitle);
     }
 
     std::string d{};
-    add_header(d, icons::SCARFACE, "Scarface Proxy `9v3.0", subtitle);
-    d += "add_textbox|`oOzellikleri `2Aktif`` ile ac/kapat, `9Ayarla`` ile detaylarini degistir. Degisiklikler `wKaydet`` ile uygulanir.``|left|\n";
+    d += "set_default_color|`o\n";
+    d += fmt::format("add_label_with_icon|big|`wScarface Premium Proxy`` `9{}``|left|{}|\n", branding::VERSION, icons::SCARFACE);
+    d += fmt::format("add_smalltext|`7{}  -  `2Licensed``|left|\n", subtitle);
+    d += "add_smalltext|`7Tick what you want and press `wSave``. Features with more options have an `9Ayarla`` button.``|left|\n";
+
+    for (const auto& section : sections_) {
+        d += "add_spacer|small|\n";
+        if (!section.title.empty()) {
+            d += fmt::format("add_label|big|`9{}``|left|\n", section.title);
+            d += "add_spacer|small|\n";
+        }
+
+        for (const auto& toggle : section.toggles) {
+            d += fmt::format("add_checkbox|cb_{}|{}``|{}\n", toggle.id, toggle.label, onoff(toggle.is_enabled()));
+            d += fmt::format("add_smalltext|`7{}``|left|\n", toggle.description);
+            if (!toggle.settings.empty()) {
+                d += fmt::format("add_button|{}|`9Ayarla``|noflags|0|0|\n", toggle.settings);
+            }
+        }
+    }
+
     d += "add_spacer|small|\n";
-
-    add_feature(d, { icons::AUTO_COLLECT, "Auto Collect", "Yere dusen esyalari otomatik toplar", "cb_autocollect", auto_collect_.is_enabled(), "menu_autocollect" });
-    add_feature(d, { icons::SPAM, "Spam", "Mesajini belirledigin aralikla atar", "cb_spam", spam_.is_enabled(), "menu_spam" });
-    add_feature(d, { icons::PING, "Ping", "Isminin yaninda pingini gosterir", "cb_ping", ping_name_.is_enabled(), "menu_ping" });
-    add_feature(d, { icons::ROULETTE, "Real/Fake Spin", "Rulet sonucunu erkenden gosterir", "cb_spin", roulette_.is_enabled(), "menu_roulette" });
-    add_feature(d, { icons::WRENCH, "Wrench Pull", "Wrench ile menusuz pull/kick/ban", "cb_wrench", quick_wrench_.is_enabled(), "menu_wrench" });
-    add_feature(d, { icons::FAST_DROP, "Fast Drop", "Drop penceresini sormadan atar", "cb_fastdrop", fast_drop_.is_enabled(), "menu_fastdrop" });
-    add_feature(d, { icons::MOD_ALERT, "Mod Alert", "Dunyaya mod girince uyarir", "cb_modalert", mod_alert_.is_enabled(), nullptr });
-    add_feature(d, { icons::PATHFIND, "Pathfind", "Tikladigin yere isinlar", "cb_pathfind", pathfind_.is_enabled(), nullptr });
-    add_feature(d, { icons::FUN_FACTS, "Fun Facts", "Konsola ilginc bilgiler yazar", "cb_funfacts", fun_facts_.is_enabled(), nullptr });
-
-    d += "add_label|small|`9Komutlar``|left|\n";
-    d += "add_smalltext|`s/daw: envanterdeki tum WL/DL/BGL'leri atar. /wd /dd /bd <adet>: kilit atar.``|left|\n";
-    d += "add_smalltext|`sBir ozelligin komutunu tek basina yazarsan (/spam, /ping, /autocollect...) menusu acilir.``|left|\n";
+    d += "add_label|big|`9Commands``|left|\n";
+    d += "add_smalltext|`7/daw`` - drop every World/Diamond/Blue Gem Lock you carry. `7/wd /dd /bd <amount>`` - drop locks.``|left|\n";
+    d += "add_smalltext|`7Type a feature's command alone (/spam, /ping, /autocollect, /wrench...) to open its menu.``|left|\n";
     add_footer(d, DIALOG_NAME, false);
     return d;
 }
@@ -225,8 +242,8 @@ void ProxyMenuHandler::open_spam() const
     d += "add_smalltext|`sProxy kapaninca spam da kapanir; mesaj ve aralik kayitli kalir.``|left|\n";
     d += "add_spacer|small|\n";
     d += spam_.is_enabled()
-        ? "add_button|sp_toggle|`4DURDUR``|noflags|0|0|\n"
-        : "add_button|sp_toggle|`2BASLAT``|noflags|0|0|\n";
+        ? "add_button|sp_stop|`4DURDUR``|noflags|0|0|\n"
+        : "add_button|sp_start|`2BASLAT``|noflags|0|0|\n";
     add_footer(d, "scarface_spam", true);
     send_dialog(d);
 }
@@ -299,6 +316,29 @@ void ProxyMenuHandler::open_pathfind() const
 
 void ProxyMenuHandler::send_dialog(const std::string& dialog) const
 {
+    // Remember what every checkbox showed, so on_dialog_return can tell what
+    // the player actually changed. Only one menu is open at a time.
+    shown_checkboxes_.clear();
+    for (std::size_t start{ 0 }; start < dialog.size();) {
+        const auto end{ std::min(dialog.find('\n', start), dialog.size()) };
+        const std::string_view line{ std::string_view{ dialog }.substr(start, end - start) };
+        start = end + 1;
+
+        constexpr std::string_view prefix{ "add_checkbox|" };
+        if (!line.starts_with(prefix)) {
+            continue;
+        }
+
+        const auto name_end{ line.find('|', prefix.size()) };
+        const auto value_start{ name_end == std::string_view::npos ? name_end : line.find('|', name_end + 1) };
+        if (value_start == std::string_view::npos) {
+            continue;
+        }
+
+        const auto value{ line.substr(value_start + 1, 1) };
+        shown_checkboxes_[std::string{ line.substr(prefix.size(), name_end - prefix.size()) }] = value == "1";
+    }
+
     // The menu is opened from chat, so the client may still be closing the chat
     // box when a local reply arrives; it drops dialogs while another menu is
     // open. Real servers answer after a network round trip, so wait as long.
@@ -345,13 +385,24 @@ void ProxyMenuHandler::on_dialog_return(const event::Event& event)
 
     const auto& fields{ pkt->text_parse };
     const auto field{ [&fields](const char* key) { return fields.get<std::string>(key); } };
-    const auto apply{ [&field](const char* key, auto& handler) {
-        const auto raw{ field(key) };
+    // Only what the player changed: a feature that switched itself off while
+    // the menu was open (spam after a server warning) must stay off.
+    const auto changed{ [this, &field](const std::string& key) -> std::optional<bool> {
+        const auto raw{ field(key.c_str()) };
         if (raw.empty()) {
-            return; // Field absent: leave this feature unchanged.
+            return std::nullopt; // Field absent: leave this feature unchanged.
         }
 
-        handler.set_enabled(raw == "1");
+        const bool on{ raw == "1" };
+        if (const auto shown{ shown_checkboxes_.find(key) }; shown != shown_checkboxes_.end() && shown->second == on) {
+            return std::nullopt;
+        }
+        return on;
+    } };
+    const auto apply{ [&changed](const char* key, auto& handler) {
+        if (const auto on{ changed(key) }) {
+            handler.set_enabled(*on);
+        }
     } };
     const auto lower{ [](std::string text) {
         std::ranges::transform(text, text.begin(), [](const unsigned char c) { return std::tolower(c); });
@@ -360,40 +411,16 @@ void ProxyMenuHandler::on_dialog_return(const event::Event& event)
 
     const auto& name{ pkt->dialog_name };
     if (name == DIALOG_NAME) {
-        apply("cb_wrench", quick_wrench_);
-        apply("cb_spin", roulette_);
-        apply("cb_modalert", mod_alert_);
-        apply("cb_funfacts", fun_facts_);
-        apply("cb_fastdrop", fast_drop_);
-        apply("cb_autocollect", auto_collect_);
-        apply("cb_pathfind", pathfind_);
-        apply("cb_spam", spam_);
-        apply("cb_ping", ping_name_);
+        for (const auto& section : sections_) {
+            for (const auto& toggle : section.toggles) {
+                if (const auto on{ changed("cb_" + toggle.id) }; on && *on != toggle.is_enabled()) {
+                    toggle.set_enabled(*on);
+                }
+            }
+        }
 
-        // A button opens a detailed menu (the checkboxes above are kept).
-        const auto button{ field("buttonClicked") };
-        if (button == "menu_autocollect") {
-            open_auto_collect();
-            return;
-        }
-        if (button == "menu_spam") {
-            open_spam();
-            return;
-        }
-        if (button == "menu_ping") {
-            open_ping();
-            return;
-        }
-        if (button == "menu_roulette") {
-            open_roulette();
-            return;
-        }
-        if (button == "menu_wrench") {
-            open_wrench();
-            return;
-        }
-        if (button == "menu_fastdrop") {
-            open_fast_drop();
+        // A settings button opens that feature's menu (the switches above are kept).
+        if (open_settings(field("buttonClicked"))) {
             return;
         }
     }
@@ -406,8 +433,14 @@ void ProxyMenuHandler::on_dialog_return(const event::Event& event)
             std::ignore = spam_.set_interval(*interval);
         }
 
-        if (field("buttonClicked") == "sp_toggle") {
-            const bool start{ !spam_.is_enabled() };
+        // Two buttons, so the click does what its label said even if the
+        // spam stopped by itself while the menu was open.
+        if (const auto button{ field("buttonClicked") }; button == "sp_start" || button == "sp_stop") {
+            const bool start{ button == "sp_start" };
+            if (start == spam_.is_enabled()) {
+                send_log(start ? "`2Spam zaten calisiyor." : "`4Spam zaten durmus.");
+                return;
+            }
             spam_.set_enabled(start);
             if (start && !spam_.is_enabled()) {
                 return; // No message to send; set_enabled told the player.

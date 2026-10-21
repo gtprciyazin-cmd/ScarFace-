@@ -41,3 +41,41 @@ TEST(SchedulerTest, MainThreadTasksRunWhenDrained)
     EXPECT_EQ(runs, 2);
     scheduler.stop();
 }
+
+// A feature switched off while its periodic callback runs on a worker thread
+// must stay off; it used to reschedule itself and run twice as often after
+// being switched on again.
+TEST(SchedulerTest, CancelByTagStopsAPeriodicTaskThatIsRunning)
+{
+    core::Scheduler scheduler{ 2 };
+    std::atomic<int> runs{ 0 };
+    std::atomic<bool> inside{ false };
+    std::atomic<bool> release{ false };
+
+    scheduler.schedule_periodic(
+        [&] {
+            ++runs;
+            inside = true;
+            while (!release) {
+                std::this_thread::sleep_for(1ms);
+            }
+            inside = false;
+        },
+        20ms,
+        "feature"
+    );
+
+    const auto start{ std::chrono::steady_clock::now() };
+    while (!inside && std::chrono::steady_clock::now() - start < 1000ms) {
+        std::this_thread::sleep_for(1ms);
+    }
+    ASSERT_TRUE(inside);
+
+    EXPECT_EQ(scheduler.cancel_by_tag("feature"), 1u);
+    release = true;
+    std::this_thread::sleep_for(150ms);
+
+    EXPECT_EQ(runs, 1);
+    EXPECT_EQ(scheduler.pending_count_by_tag("feature"), 0u);
+    scheduler.stop();
+}

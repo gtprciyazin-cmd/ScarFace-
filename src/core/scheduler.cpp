@@ -174,7 +174,8 @@ bool Scheduler::cancel(TaskId id)
 
     std::lock_guard lock(mutex_);
 
-    if (!pending_tasks_.contains(id)) {
+    // A periodic task that is running right now must not be rescheduled either.
+    if (!pending_tasks_.contains(id) && !running_tasks_.contains(id)) {
         return false;
     }
 
@@ -197,7 +198,9 @@ std::size_t Scheduler::cancel_by_tag(const std::string& tag)
 
     std::size_t count = 0;
     for (TaskId id : it->second) {
-        if (pending_tasks_.contains(id)) {
+        // Running tasks too: otherwise a periodic task whose callback is in
+        // progress reschedules itself and outlives the cancel.
+        if (pending_tasks_.contains(id) || running_tasks_.contains(id)) {
             cancelled_tasks_.insert(id);
             ++count;
         }
@@ -211,6 +214,9 @@ void Scheduler::cancel_all()
     std::lock_guard lock(mutex_);
 
     for (TaskId id : pending_tasks_) {
+        cancelled_tasks_.insert(id);
+    }
+    for (TaskId id : running_tasks_) {
         cancelled_tasks_.insert(id);
     }
 }

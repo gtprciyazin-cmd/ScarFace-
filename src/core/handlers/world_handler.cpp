@@ -4,6 +4,8 @@
 
 #include "../../event/event.hpp"
 #include "../../packet/game/player.hpp"
+#include "../../packet/game/server.hpp"
+#include "../../packet/message/exit.hpp"
 #include "../../packet/game/world.hpp"
 #include "../../world/world.hpp"
 #include "../../world/object.hpp"
@@ -16,6 +18,7 @@ WorldHandler::WorldHandler(event::Dispatcher& dispatcher)
     : dispatcher_{ dispatcher }
 {
     setup_join_request_handler();
+    setup_leave_handlers();
     setup_on_spawn_handler();
     setup_on_remove_handler();
     setup_send_map_data_handler();
@@ -42,6 +45,39 @@ void WorldHandler::setup_join_request_handler()
             world::World::instance().clear();
         })
     );
+}
+
+template <packet::PacketId Id>
+void WorldHandler::clear_world_on(const event::Direction direction)
+{
+    constexpr auto type{ event::packet_event_type(Id) };
+    handles_.emplace_back(
+        dispatcher_,
+        type,
+        dispatcher_.append_listener(type, [direction](const event::Event& event) {
+            const auto* evt{ dynamic_cast<const event::TypedPacketEvent<Id>*>(&event) };
+            if (evt && evt->direction == direction) {
+                world::World::instance().clear();
+            }
+        })
+    );
+}
+
+void WorldHandler::setup_leave_handlers()
+{
+    // Out of the world for whatever reason: forget it, so nothing keeps acting
+    // as if the player were still standing in it (spam, ping name, auto collect).
+    clear_world_on<packet::PacketId::QuitToExit>(event::Direction::ServerBound);
+    clear_world_on<packet::PacketId::OnRequestWorldSelectMenu>(event::Direction::ClientBound);
+    clear_world_on<packet::PacketId::OnSendToServer>(event::Direction::ClientBound);
+
+    for (const auto type : { event::Type::ClientDisconnect, event::Type::ServerDisconnect }) {
+        handles_.emplace_back(
+            dispatcher_,
+            type,
+            dispatcher_.append_listener(type, [](const event::Event&) { world::World::instance().clear(); })
+        );
+    }
 }
 
 void WorldHandler::setup_on_spawn_handler()

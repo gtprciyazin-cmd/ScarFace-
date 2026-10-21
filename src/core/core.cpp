@@ -1,6 +1,7 @@
 #include "core.hpp"
 
 #include <chrono>
+#include <functional>
 #include <thread>
 #include <enet/enet.h>
 #include <fmt/format.h>
@@ -70,6 +71,7 @@ Core::Core()
     proxy_menu_handler_ = std::make_unique<handlers::ProxyMenuHandler>(dispatcher_, *server_, scheduler_, *quick_wrench_handler_, *roulette_handler_, *mod_alert_handler_, *fun_facts_handler_, *fast_drop_handler_, *auto_collect_handler_, *hotkey_handler_, *pathfind_handler_, *spam_handler_, *ping_name_handler_, *version_handler_);
     command_handler_ = std::make_unique<command::CommandHandler>(config_, dispatcher_, scheduler_, *server_, *client_);
     register_feature_commands();
+    register_menu();
     start_discord_presence();
 
     script_engine_ = std::make_unique<scripting::LuaEngine>();
@@ -166,6 +168,62 @@ void Core::register_feature_commands()
     registry.set_menu("pathfind", menu(&handlers::ProxyMenuHandler::open_pathfind));
     registry.set_menu("spam", menu(&handlers::ProxyMenuHandler::open_spam));
     registry.set_menu("ping", menu(&handlers::ProxyMenuHandler::open_ping));
+}
+
+void Core::register_menu()
+{
+    using Toggle = handlers::ProxyMenuHandler::Toggle;
+    auto& menu{ *proxy_menu_handler_ };
+
+    // Label colours follow the usual proxy menus: green "Enable", yellow
+    // "Show", grey "Hide", the feature name in yellow.
+    const auto toggle{ [](auto& handler) {
+        return std::pair{
+            std::function<bool()>{ [&handler] { return handler.is_enabled(); } },
+            std::function<void(bool)>{ [&handler](const bool on) { handler.set_enabled(on); } },
+        };
+    } };
+    const auto add{ [&menu](std::string id, std::string label, std::string description, auto accessors, std::string settings = {}) {
+        menu.add_toggle(Toggle{
+            std::move(id), std::move(label), std::move(description),
+            std::move(accessors.first), std::move(accessors.second), std::move(settings)
+        });
+    } };
+
+    menu.add_section("Automation");
+    add("autocollect", "`2Enable `9Auto Collect",
+        "Automatically Picks Up Items Dropped Near You. Set Range And Delay With `9Ayarla`` Or /autocollect.",
+        toggle(*auto_collect_handler_), "menu_autocollect");
+    add("spam", "`2Enable `9Auto Spam",
+        "Says Your Message In World Chat Every Few Seconds. Stops By Itself If The Server Warns About Spam.",
+        toggle(*spam_handler_), "menu_spam");
+    add("fastdrop", "`2Enable `9Fast Drop",
+        "Enables Fast Drop Without Additional Dialogs, `2/count [amount]`` For Specific Amount.",
+        toggle(*fast_drop_handler_), "menu_fastdrop");
+
+    menu.add_section("Roulette");
+    add("wrench", "`2Enable `9Wrench `#Pull",
+        "Enables Fast Wrenching. You Can Select Modes In `2/wrench``.",
+        toggle(*quick_wrench_handler_), "menu_wrench");
+    add("spin", "`9Show Real/Fake Spin",
+        "Will Show You `2[REAL]`` and `4[FAKE]`` Roulette Wheel Spins.",
+        toggle(*roulette_handler_), "menu_roulette");
+
+    menu.add_section("Visuals");
+    add("ping", "`9Show Ping Latency",
+        "Will Display Your Ping Latency Next To Your Name.",
+        toggle(*ping_name_handler_), "menu_ping");
+    add("funfacts", "`9Show Fun Facts",
+        "Will Regularly Show Fun Facts.",
+        toggle(*fun_facts_handler_));
+
+    menu.add_section("Safety");
+    add("modalert", "`2Enable `9Auto Mod Detect",
+        "Warns You When A Moderator Or An Invisible Player Is In The World.",
+        toggle(*mod_alert_handler_));
+    add("pathfind", "`2Enable `9Pathfinding Toggle",
+        "You Can Teleport To Any Position By Clicking It. Type `2/pathfind`` To Change It.",
+        toggle(*pathfind_handler_));
 }
 
 void Core::start_discord_presence()

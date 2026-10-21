@@ -1,6 +1,9 @@
 #pragma once
+#include <functional>
 #include <memory>
 #include <string>
+#include <unordered_map>
+#include <vector>
 
 #include "quick_wrench_handler.hpp"
 #include "roulette_handler.hpp"
@@ -47,6 +50,24 @@ public:
     ProxyMenuHandler& operator=(ProxyMenuHandler&&) noexcept = delete;
     ~ProxyMenuHandler() = default;
 
+    // A switch in the main /proxy menu: a checkbox labelled like
+    // "`2Enable `9Fast Drop" with a description line under it and, when the
+    // feature has more settings, a button to its own menu.
+    struct Toggle {
+        std::string id;
+        std::string label;
+        std::string description;
+        std::function<bool()> is_enabled;
+        std::function<void(bool)> set_enabled;
+        // Button name of the feature's menu (see open_settings), or empty.
+        std::string settings{};
+    };
+
+    // Starts a new titled group of switches in the main menu.
+    void add_section(std::string title);
+    // Adds a switch to the last section.
+    void add_toggle(Toggle toggle);
+
     // Shows the main options dialog to the player.
     void open() const;
 
@@ -63,7 +84,14 @@ public:
 private:
     static constexpr const char* DIALOG_NAME{ "scarface_options" };
 
+    struct Section {
+        std::string title;
+        std::vector<Toggle> toggles;
+    };
+
     void on_dialog_return(const event::Event& event);
+    // Opens the menu behind a settings button; false for an unknown button.
+    bool open_settings(const std::string& button) const;
     [[nodiscard]] std::string build_dialog() const;
     void send_dialog(const std::string& dialog) const;
     void send_log(const std::string& msg) const;
@@ -82,6 +110,11 @@ private:
     SpamHandler& spam_;
     PingNameHandler& ping_name_;
     VersionHandler& version_;
+
+    std::vector<Section> sections_;
+    // Checkbox values of the menu that was sent last (see send_dialog).
+    mutable std::unordered_map<std::string, bool> shown_checkboxes_;
+    std::unordered_map<std::string, std::function<void()>> settings_menus_;
 
     event::ScopedHandle handle_;
 };

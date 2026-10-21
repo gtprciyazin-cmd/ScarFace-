@@ -1,5 +1,7 @@
 #include "ping_name_handler.hpp"
 
+#include <algorithm>
+#include <string_view>
 #include <tuple>
 
 #include <spdlog/spdlog.h>
@@ -14,6 +16,27 @@ namespace core::handlers {
 namespace {
     constexpr auto on_spawn_type{ event::packet_event_type(packet::PacketId::OnSpawn) };
     constexpr auto on_name_changed_type{ event::packet_event_type(packet::PacketId::OnNameChanged) };
+    constexpr auto on_country_state_type{ event::packet_event_type(packet::PacketId::OnCountryState) };
+
+    // The whole value of a "key|value" line in OnSpawn's text, pipes included
+    // ("country|us|showGuild|maxLevel" -> "us|showGuild|maxLevel").
+    [[nodiscard]] std::string line_value(const std::string_view text, const std::string_view key)
+    {
+        for (std::size_t start{ 0 }; start < text.size();) {
+            const auto end{ std::min(text.find('\n', start), text.size()) };
+            const auto line{ text.substr(start, end - start) };
+            if (line.size() > key.size() && line.starts_with(key) && line[key.size()] == '|') {
+                return std::string{ line.substr(key.size() + 1) };
+            }
+            start = end + 1;
+        }
+        return {};
+    }
+
+    [[nodiscard]] bool is_legend(const std::string_view name)
+    {
+        return name.ends_with(" of Legend``");
+    }
 }
 
 PingNameHandler::PingNameHandler(
@@ -38,6 +61,11 @@ PingNameHandler::PingNameHandler(
         dispatcher_,
         on_name_changed_type,
         dispatcher_.append_listener(on_name_changed_type, [this](const event::Event& e) { on_name_changed(e); })
+    };
+    country_handle_ = event::ScopedHandle{
+        dispatcher_,
+        on_country_state_type,
+        dispatcher_.append_listener(on_country_state_type, [this](const event::Event& e) { on_country_state(e); })
     };
 
     if (is_enabled()) {
@@ -110,10 +138,13 @@ void PingNameHandler::on_spawn(const event::Event& event)
         return;
     }
 
-    // A new world: the avatar is created with the plain name again.
+    // A new world: the avatar is created with the plain name again. Keep the
+    // title and country lines whole; the parsed fields stop at the first pipe.
+    const auto spawn_text{ pkt->variant.get<std::string>(1) };
     net_id_ = pkt->net_id;
     base_name_ = pkt->name;
-    base_title_ = pkt->title_icon;
+    base_title_ = line_value(spawn_text, "titleIcon");
+    base_country_ = line_value(spawn_text, "country");
     shown_name_.clear();
 
     if (!is_enabled()) {
@@ -136,7 +167,7 @@ void PingNameHandler::on_name_changed(const event::Event& event)
     }
 
     const auto pkt{ evt->get<packet::game::OnNameChanged>() };
-    if (!pkt || net_id_ < 0 || pkt->net_id != net_id_) {
+    if (!pkt || net_id_ < 0 || pkt->net_id != net_id_ || world::World::instance().get_local_net_id() != net_id_) {
         return;
     }
 
@@ -155,7 +186,34 @@ void PingNameHandler::on_name_changed(const event::Event& event)
     if (packet::PacketHelper::write(renamed, server_)) {
         shown_name_ = renamed.name;
         evt->cancel();
+        restore_badges(renamed.name);
     }
+}
+
+void PingNameHandler::on_country_state(const event::Event& event)
+{
+    const auto* evt{ dynamic_cast<const event::TypedPacketEvent<packet::PacketId::OnCountryState>*>(&event) };
+    if (!evt || evt->direction != event::Direction::ClientBound) {
+        return;
+    }
+
+    if (const auto pkt{ evt->get<packet::game::OnCountryState>() }; pkt && net_id_ >= 0 && pkt->net_id == net_id_) {
+        base_country_ = pkt->country;
+    }
+}
+
+void PingNameHandler::restore_badges(const std::string& shown)
+{
+    // Renaming a legend makes the client reset the flag and wipe every badge
+    // (guild, max level, donor...); set them again right after.
+    if (!is_legend(shown) || base_country_.empty()) {
+        return;
+    }
+
+    packet::game::OnCountryState pkt{};
+    pkt.net_id = net_id_;
+    pkt.country = base_country_;
+    std::ignore = packet::PacketHelper::write(pkt, server_);
 }
 
 void PingNameHandler::refresh()
@@ -212,6 +270,7 @@ void PingNameHandler::send_name(const std::string& name)
     pkt.variant = packet::PacketVariant{ "OnNameChanged", name, base_title_ };
     if (packet::PacketHelper::write(pkt, server_)) {
         shown_name_ = name;
+        restore_badges(name);
     }
 }
 }

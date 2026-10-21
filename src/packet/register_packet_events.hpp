@@ -112,6 +112,18 @@ inline void register_packet_events() {
         make_event_builder<game::OnRemove, PacketId::OnRemove>()
     );
     registry.register_event(
+        PacketId::OnNameChanged,
+        make_event_builder<game::OnNameChanged, PacketId::OnNameChanged>()
+    );
+    registry.register_event(
+        PacketId::OnCountryState,
+        make_event_builder<game::OnCountryState, PacketId::OnCountryState>()
+    );
+    registry.register_event(
+        PacketId::OnRequestWorldSelectMenu,
+        make_event_builder<game::OnRequestWorldSelectMenu, PacketId::OnRequestWorldSelectMenu>()
+    );
+    registry.register_event(
         PacketId::OnDialogRequest,
         make_event_builder<game::OnDialogRequest, PacketId::OnDialogRequest>()
     );

@@ -48,6 +48,9 @@ private:
 
     void on_spawn(const event::Event& event);
     void on_name_changed(const event::Event& event);
+    void on_country_state(const event::Event& event);
+    // Sends the flag and badges again after renaming a legend (see .cpp).
+    void restore_badges(const std::string& shown);
 
     void start();
     void stop();
@@ -70,10 +73,13 @@ private:
     // Title graphics (titleIcon JSON). OnNameChanged always sets the title
     // too, so it must be sent back or the title disappears.
     std::string base_title_;
+    // Flag and badges ("us|showGuild|maxLevel"), from OnSpawn or OnCountryState.
+    std::string base_country_;
     std::string shown_name_;
 
     TaskId task_id_{ INVALID_TASK_ID };
     event::ScopedHandle spawn_handle_;
     event::ScopedHandle name_handle_;
+    event::ScopedHandle country_handle_;
 };
 }

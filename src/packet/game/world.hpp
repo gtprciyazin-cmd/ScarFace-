@@ -101,6 +101,27 @@ struct OnSpawn : VariantPacket<PacketId::OnSpawn> {
     }
 };
 
+// The server sends the player back to the world list: after leaving a
+// world, failing to enter one, being kicked...
+struct OnRequestWorldSelectMenu : VariantPacket<PacketId::OnRequestWorldSelectMenu> {
+    bool read(const Payload& payload) override
+    {
+        const auto var{ get_payload_if<VariantPayload>(payload) };
+        if (!var) {
+            return false;
+        }
+
+        variant = var->variant;
+        game_packet = var->game_packet;
+        return true;
+    }
+
+    Payload write() override
+    {
+        return VariantPayload{ game_packet, variant };
+    }
+};
+
 struct OnRemove : VariantPacket<PacketId::OnRemove> {
     int32_t net_id;
     int32_t player_id;

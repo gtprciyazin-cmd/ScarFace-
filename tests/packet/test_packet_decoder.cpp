@@ -4,6 +4,7 @@
 #include "packet/register_packets.hpp"
 #include "packet/game/inventory.hpp"
 #include "packet/message/input.hpp"
+#include "packet/generic_packets.hpp"
 #include "player/inventory.hpp"
 
 using namespace packet;
@@ -108,4 +109,25 @@ TEST(PacketDecoderTest, InputTextStopsAtTheFirstNul)
     const auto* input{ dynamic_cast<const message::Input*>(decoded->get()) };
     ASSERT_NE(input, nullptr);
     EXPECT_EQ(input->text, "/proxy");
+}
+
+// The ping display rewrites the server's renames and keeps legend badges, so
+// these calls must decode to their own packets and raise events.
+TEST(PacketDecoderTest, NameAndCountryCallsAreDecodedAndRaiseEvents)
+{
+    register_all_packets();
+    const auto& events{ event_registry::PacketEventRegistry::instance() };
+
+    for (const auto& [function, id] : {
+        std::pair{ "OnNameChanged", PacketId::OnNameChanged },
+        std::pair{ "OnCountryState", PacketId::OnCountryState },
+        std::pair{ "OnRequestWorldSelectMenu", PacketId::OnRequestWorldSelectMenu },
+    }) {
+        GenericVariantPacket call{};
+        call.variant = PacketVariant{ std::string{ function }, std::string{ "x" } };
+        const auto decoded{ PacketDecoder::decode(PacketHelper::serialize(call), quiet(), "ClientBound") };
+        ASSERT_TRUE(decoded.has_value()) << function;
+        EXPECT_EQ((*decoded)->id(), id) << function;
+        EXPECT_TRUE(events.has_event(id)) << function;
+    }
 }

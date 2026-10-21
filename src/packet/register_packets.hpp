@@ -57,6 +57,9 @@ inline bool register_all_packets()
 
     registry.register_packet<game::OnSpawn>();
     registry.register_packet<game::OnRemove>();
+    registry.register_packet<game::OnNameChanged>();
+    registry.register_packet<game::OnCountryState>();
+    registry.register_packet<game::OnRequestWorldSelectMenu>();
     registry.register_packet<game::OnDialogRequest>();
     registry.register_packet<game::OnTalkBubble>();
     registry.register_packet<game::OnConsoleMessage>();

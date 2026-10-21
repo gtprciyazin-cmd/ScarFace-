@@ -47,6 +47,7 @@ public:
 
 private:
     void register_feature_commands();
+    void register_menu();
     void start_discord_presence();
 
     Config config_;

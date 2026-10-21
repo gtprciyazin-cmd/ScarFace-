@@ -46,6 +46,45 @@ struct OnNameChanged : VariantPacket<PacketId::OnNameChanged> {
     }
 };
 
+// Sets an avatar's flag and badges: "us", or "us|showGuild|maxLevel" etc.
+// Renaming a legend ("... of Legend``") makes the client reset these, so the
+// proxy sends them again after its own renames.
+struct OnCountryState : VariantPacket<PacketId::OnCountryState> {
+    int32_t net_id{ -1 };
+    std::string country;
+
+    bool read(const Payload& payload) override
+    {
+        const auto var{ get_payload_if<VariantPayload>(payload) };
+        if (!var) {
+            return false;
+        }
+
+        variant = var->variant;
+        game_packet = var->game_packet;
+
+        if (variant.size() < 2) {
+            return false;
+        }
+
+        net_id = static_cast<int32_t>(game_packet.net_id);
+        country = variant.get<std::string>(1);
+        return true;
+    }
+
+    Payload write() override
+    {
+        game_packet.net_id = static_cast<uint32_t>(net_id);
+
+        PacketVariant out{ variant };
+        if (out.size() < 2) {
+            out = PacketVariant{ "OnCountryState", country };
+        }
+        out.set(1, country);
+        return VariantPayload{ game_packet, out };
+    }
+};
+
 struct OnChangeSkin : VariantPacket<PacketId::OnChangeSkin> {
     int32_t net_id;
     uint32_t skin_code;

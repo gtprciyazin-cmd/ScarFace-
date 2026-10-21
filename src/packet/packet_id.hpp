@@ -43,6 +43,8 @@ enum class PacketId : std::uint32_t {
     OnTalkBubble,
     OnConsoleMessage,
     OnTextOverlay,
+    OnCountryState,
+    OnRequestWorldSelectMenu,
     Unknown = std::numeric_limits<std::uint32_t>::max(),
 };
 
@@ -94,6 +96,8 @@ inline const std::unordered_map<std::string_view, PacketId> VARIANT_FUNCTION_MAP
     { "OnTalkBubble", PacketId::OnTalkBubble },
     { "OnConsoleMessage", PacketId::OnConsoleMessage },
     { "OnTextOverlay", PacketId::OnTextOverlay },
+    { "OnCountryState", PacketId::OnCountryState },
+    { "OnRequestWorldSelectMenu", PacketId::OnRequestWorldSelectMenu },
 };
 
 inline const std::unordered_map<PacketType, PacketId> GAME_PACKET_MAP = {
