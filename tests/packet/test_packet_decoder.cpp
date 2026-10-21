@@ -3,6 +3,7 @@
 #include "packet/packet_decoder.hpp"
 #include "packet/register_packets.hpp"
 #include "packet/game/inventory.hpp"
+#include "packet/message/input.hpp"
 #include "player/inventory.hpp"
 
 using namespace packet;
@@ -87,4 +88,24 @@ TEST(PacketDecoderTest, TrackTextIsNotMistakenForAGamePacket)
     ASSERT_EQ(data.size(), 169u);
 
     EXPECT_FALSE(PacketDecoder::decode(data, quiet(), "ClientBound").has_value());
+}
+
+// Chat commands must match by name: bytes after the terminating NUL would end
+// up in the command name ("proxy\0\0") and the command would not be found.
+TEST(PacketDecoderTest, InputTextStopsAtTheFirstNul)
+{
+    register_all_packets();
+
+    const std::string text{ "action|input\n|text|/proxy" };
+    utils::ByteStream<> bs{};
+    bs.write<std::uint32_t>(NET_MESSAGE_GENERIC_TEXT);
+    bs.write_data(text.data(), text.size());
+    bs.write<std::uint8_t>(0);
+    bs.write<std::uint8_t>(0);
+
+    const auto decoded{ PacketDecoder::decode(bs.get_data(), quiet(), "ServerBound") };
+    ASSERT_TRUE(decoded.has_value());
+    const auto* input{ dynamic_cast<const message::Input*>(decoded->get()) };
+    ASSERT_NE(input, nullptr);
+    EXPECT_EQ(input->text, "/proxy");
 }

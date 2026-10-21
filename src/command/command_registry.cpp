@@ -61,6 +61,7 @@ bool CommandRegistry::execute(
     }
 
     if (const auto menu{ menus_.find(name) }; args.empty() && menu != menus_.end() && menu->second) {
+        spdlog::info("Opening the /{} menu", name);
         menu->second();
         return true;
     }

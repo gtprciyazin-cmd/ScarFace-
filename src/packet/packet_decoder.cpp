@@ -78,8 +78,8 @@ namespace {
             reinterpret_cast<const char*>(data.data() + sizeof(NetMessageType)),
             data.size() - sizeof(NetMessageType)
         };
-        if (!message.empty() && message.back() == '\0') {
-            message.pop_back();
+        if (const auto nul{ message.find('\0') }; nul != std::string::npos) {
+            message.resize(nul);
         }
 
         utils::TextParse parser{ message };

@@ -128,6 +128,16 @@ TEST(ServerPacketTest, ProxyBuiltFunctionCallsTargetTheClient)
     EXPECT_EQ(args.get<std::string>(2), "`9[Spin]`` `412``");
 }
 
+// A dialog the client would ignore must not depend on the default header: even
+// one built from a packet that targeted an avatar goes out as a global call.
+TEST(ServerPacketTest, DialogAlwaysTargetsTheClient)
+{
+    game::OnDialogRequest dialog{};
+    dialog.game_packet.net_id = 0;
+    dialog.dialog = "end_dialog|scarface_options|Close|Save|\n";
+    EXPECT_EQ(header_of(PacketHelper::serialize(dialog)).net_id, 0xFFFFFFFFu);
+}
+
 TEST(ServerPacketTest, SendToServerBuiltFromScratchCarriesEveryField)
 {
     game::OnSendToServer pkt{};

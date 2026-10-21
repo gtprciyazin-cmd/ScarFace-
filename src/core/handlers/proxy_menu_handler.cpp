@@ -15,6 +15,7 @@
 #include "../../packet/message/chat.hpp"
 #include "../../packet/message/dialog_return.hpp"
 #include "../../packet/packet_helper.hpp"
+#include "../../world/world.hpp"
 
 namespace core::handlers {
 namespace {
@@ -40,6 +41,7 @@ namespace {
 ProxyMenuHandler::ProxyMenuHandler(
     event::Dispatcher& dispatcher,
     network::Server& server,
+    std::shared_ptr<Scheduler> scheduler,
     QuickWrenchHandler& quick_wrench,
     RouletteHandler& roulette,
     ModAlertHandler& mod_alert,
@@ -52,6 +54,7 @@ ProxyMenuHandler::ProxyMenuHandler(
 )
     : dispatcher_{ dispatcher }
     , server_{ server }
+    , scheduler_{ std::move(scheduler) }
     , quick_wrench_{ quick_wrench }
     , roulette_{ roulette }
     , mod_alert_{ mod_alert }
@@ -91,6 +94,7 @@ std::string ProxyMenuHandler::build_dialog() const
     d += "add_button|menu_roulette|`wRulet``|noflags|0|0|\n";
     d += "add_button|menu_wrench|`wWrench``|noflags|0|0|\n";
     d += "add_button|menu_fastdrop|`wFast Drop``|noflags|0|0|\n";
+    d += "add_quick_exit|\n";
     d += "end_dialog|scarface_options|Kapat|Kaydet|\n";
     return d;
 }
@@ -124,6 +128,7 @@ void ProxyMenuHandler::open_auto_collect() const
     d += fmt::format("add_checkbox|ac_hotkey|`wKisayol tusu ile ac/kapat``|{}\n", onoff(hotkey_.is_enabled()));
     d += fmt::format("add_text_input|ac_key|Kisayol tusu (F1-F12, A-Z, 0-9)|{}|6|\n", HotkeyHandler::name_from_key(hotkey_.get_key()));
     d += "add_textbox|`oTus sadece Growtopia penceresi aktifken calisir.``|left|\n";
+    d += "add_quick_exit|\n";
     d += "end_dialog|scarface_autocollect|Kapat|Kaydet|\n";
     send_dialog(d);
 }
@@ -137,6 +142,7 @@ void ProxyMenuHandler::open_roulette() const
     d += fmt::format("add_checkbox|rl_enabled|`wSonucu erken goster``|{}\n", onoff(roulette_.is_enabled()));
     d += fmt::format("add_text_input|rl_mode|Mod (real / reme / qq)|{}|4|\n", roulette_.mode_string());
     d += "add_textbox|`oreal: sayi, reme: rakamlar toplami (32->5), qq: son rakam (27->7).``|left|\n";
+    d += "add_quick_exit|\n";
     d += "end_dialog|scarface_roulette|Kapat|Kaydet|\n";
     send_dialog(d);
 }
@@ -150,6 +156,7 @@ void ProxyMenuHandler::open_wrench() const
     d += fmt::format("add_checkbox|wr_enabled|`wWrench ile hizli islem``|{}\n", onoff(quick_wrench_.is_enabled()));
     d += fmt::format("add_text_input|wr_action|Islem (pull / kick / ban)|{}|4|\n", QuickWrenchHandler::action_to_string(quick_wrench_.get_action()));
     d += "add_textbox|`oAcikken dunyandaki bir oyuncuya wrench atinca bu islem menusuz yapilir.``|left|\n";
+    d += "add_quick_exit|\n";
     d += "end_dialog|scarface_wrench|Kapat|Kaydet|\n";
     send_dialog(d);
 }
@@ -163,6 +170,7 @@ void ProxyMenuHandler::open_fast_drop() const
     d += fmt::format("add_checkbox|fd_enabled|`wFast Drop``|{}\n", onoff(fast_drop_.is_enabled()));
     d += fmt::format("add_text_input|fd_amount|Miktar (0 = hepsi)|{}|3|\n", fast_drop_.get_amount());
     d += "add_textbox|`oAcikken drop menusu sormadan bu kadarini atar.``|left|\n";
+    d += "add_quick_exit|\n";
     d += "end_dialog|scarface_fastdrop|Kapat|Kaydet|\n";
     send_dialog(d);
 }
@@ -174,6 +182,7 @@ void ProxyMenuHandler::open_mod_alert() const
     d += "add_label_with_icon|big|`wMod Alert``|left|278|\n";
     d += "add_spacer|small|\n";
     d += fmt::format("add_checkbox|ma_enabled|`wModerator / gorunmez oyuncu uyarisi``|{}\n", onoff(mod_alert_.is_enabled()));
+    d += "add_quick_exit|\n";
     d += "end_dialog|scarface_modalert|Kapat|Kaydet|\n";
     send_dialog(d);
 }
@@ -186,20 +195,40 @@ void ProxyMenuHandler::open_pathfind() const
     d += "add_spacer|small|\n";
     d += fmt::format("add_checkbox|pf_enabled|`wTiklanan yere isinlan``|{}\n", onoff(pathfind_.is_enabled()));
     d += "add_textbox|`oDeneysel: sunucu uzak isinlanmalari reddedebilir.``|left|\n";
+    d += "add_quick_exit|\n";
     d += "end_dialog|scarface_pathfind|Kapat|Kaydet|\n";
     send_dialog(d);
 }
 
 void ProxyMenuHandler::send_dialog(const std::string& dialog) const
 {
-    packet::game::OnDialogRequest pkt{};
-    pkt.dialog = dialog;
-    if (!packet::PacketHelper::write(pkt, server_)) {
-        spdlog::warn("Proxy menu: could not send the dialog (client not connected)");
-        return;
-    }
+    // The menu is opened from chat, so the client may still be closing the chat
+    // box when a local reply arrives; it drops dialogs while another menu is
+    // open. Real servers answer after a network round trip, so wait as long.
+    const auto scheduler{ scheduler_.get() };
+    scheduler_->schedule_delayed(
+        [this, scheduler, dialog] {
+            scheduler->post_to_main_thread([this, dialog] {
+                // Shown in the console even when the client refuses the dialog, so
+                // a missing menu can be told apart from a command that never ran.
+                send_log("`9[Scarface]`` Menu aciliyor...");
+                if (world::World::instance().get_local_net_id() < 0) {
+                    send_log("`4[Scarface]`` Menu sadece bir dunyanin icinde acilir.");
+                }
 
-    spdlog::info("Proxy menu: sent dialog ({} bytes)", dialog.size());
+                packet::game::OnDialogRequest pkt{};
+                pkt.dialog = dialog;
+                if (!packet::PacketHelper::write(pkt, server_)) {
+                    spdlog::warn("Proxy menu: could not send the dialog (client not connected)");
+                    return;
+                }
+
+                spdlog::info("Proxy menu: sent dialog ({} bytes)", dialog.size());
+            });
+        },
+        std::chrono::milliseconds{ 200 },
+        "proxy_menu"
+    );
 }
 
 void ProxyMenuHandler::on_dialog_return(const event::Event& event)

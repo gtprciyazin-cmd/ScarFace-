@@ -116,6 +116,8 @@ struct OnDialogRequest : VariantPacket<PacketId::OnDialogRequest> {
 
     Payload write() override
     {
+        // The client only opens dialogs sent as global calls (net_id -1).
+        game_packet.net_id = static_cast<std::uint32_t>(-1);
         const PacketVariant variant{
             "OnDialogRequest",
             dialog

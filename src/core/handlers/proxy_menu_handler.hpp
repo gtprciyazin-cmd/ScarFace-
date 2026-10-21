@@ -1,4 +1,5 @@
 #pragma once
+#include <memory>
 #include <string>
 
 #include "quick_wrench_handler.hpp"
@@ -12,6 +13,7 @@
 #include "version_handler.hpp"
 #include "../../event/event.hpp"
 #include "../../network/server.hpp"
+#include "../scheduler.hpp"
 
 namespace core::handlers {
 // Backs the in-game settings menus: "/proxy" (every feature on one page, with
@@ -23,6 +25,7 @@ public:
     ProxyMenuHandler(
         event::Dispatcher& dispatcher,
         network::Server& server,
+        std::shared_ptr<Scheduler> scheduler,
         QuickWrenchHandler& quick_wrench,
         RouletteHandler& roulette,
         ModAlertHandler& mod_alert,
@@ -61,6 +64,7 @@ private:
 
     event::Dispatcher& dispatcher_;
     network::Server& server_;
+    std::shared_ptr<Scheduler> scheduler_;
     QuickWrenchHandler& quick_wrench_;
     RouletteHandler& roulette_;
     ModAlertHandler& mod_alert_;
