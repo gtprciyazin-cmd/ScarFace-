@@ -26,6 +26,7 @@ add_executable(GTProxy_tests
     utils/test_text_parse.cpp
     utils/test_byte_stream.cpp
     utils/test_chat_text.cpp
+    utils/test_discord_ipc.cpp
     utils/test_roulette.cpp
     world/test_object_finder.cpp
     world/test_player_finder.cpp

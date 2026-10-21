@@ -35,7 +35,7 @@ public:
         if (ctx.args.empty()) {
             packet::message::Log log{};
             log.msg = fmt::format("`4Usage: ``{}nick <nickname>", ctx.registry.prefix());
-            packet::PacketHelper::write(log, ctx.server);
+            std::ignore = packet::PacketHelper::write(log, ctx.server);
             return Result::InvalidArguments;
         }
 

@@ -155,6 +155,17 @@ else ()
     message(STATUS "License check disabled")
 endif ()
 
+# Discord application whose name and art the Rich Presence shows. Users can
+# also set discord.application_id in config.json.
+set(GTPROXY_DISCORD_APP_ID "" CACHE STRING "Discord application id for Rich Presence (empty: only config.json)")
+if (NOT GTPROXY_DISCORD_APP_ID STREQUAL "")
+    if (NOT GTPROXY_DISCORD_APP_ID MATCHES "^[0-9]+$")
+        message(FATAL_ERROR "GTPROXY_DISCORD_APP_ID must be the numeric application id")
+    endif ()
+    target_compile_definitions(${PROJECT_NAME} PRIVATE
+        "GTPROXY_DISCORD_APP_ID=\"${GTPROXY_DISCORD_APP_ID}\"")
+endif ()
+
 if (NOT DEFINED CMAKE_BUILD_TYPE OR CMAKE_BUILD_TYPE STREQUAL "" OR CMAKE_BUILD_TYPE STREQUAL "Debug")
     target_compile_definitions(${PROJECT_NAME} PRIVATE
         GTPROXY_DEBUG)

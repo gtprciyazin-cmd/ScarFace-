@@ -3,7 +3,10 @@
 #include <chrono>
 #include <thread>
 #include <enet/enet.h>
+#include <fmt/format.h>
 #include <spdlog/spdlog.h>
+
+#include "branding.hpp"
 
 #include "../command/commands/auto_collect_command.hpp"
 #include "../command/commands/balance_command.hpp"
@@ -67,6 +70,7 @@ Core::Core()
     proxy_menu_handler_ = std::make_unique<handlers::ProxyMenuHandler>(dispatcher_, *server_, scheduler_, *quick_wrench_handler_, *roulette_handler_, *mod_alert_handler_, *fun_facts_handler_, *fast_drop_handler_, *auto_collect_handler_, *hotkey_handler_, *pathfind_handler_, *spam_handler_, *ping_name_handler_, *version_handler_);
     command_handler_ = std::make_unique<command::CommandHandler>(config_, dispatcher_, scheduler_, *server_, *client_);
     register_feature_commands();
+    start_discord_presence();
 
     script_engine_ = std::make_unique<scripting::LuaEngine>();
 
@@ -162,6 +166,54 @@ void Core::register_feature_commands()
     registry.set_menu("pathfind", menu(&handlers::ProxyMenuHandler::open_pathfind));
     registry.set_menu("spam", menu(&handlers::ProxyMenuHandler::open_spam));
     registry.set_menu("ping", menu(&handlers::ProxyMenuHandler::open_ping));
+}
+
+void Core::start_discord_presence()
+{
+    const auto& discord_config{ config_.get_discord_config() };
+    if (!discord_config.enabled) {
+        return;
+    }
+
+    std::string application_id{ discord_config.application_id };
+#ifdef GTPROXY_DISCORD_APP_ID
+    if (application_id.empty()) {
+        application_id = GTPROXY_DISCORD_APP_ID;
+    }
+#endif
+
+    utils::discord::Activity activity{};
+    activity.details = "Waiting for Growtopia";
+    activity.state = "Licensed Role: Premium Proxy User";
+    activity.start_timestamp = std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::system_clock::now().time_since_epoch()
+    ).count();
+    activity.large_image = discord_config.large_image;
+    activity.large_text = fmt::format("Scarface Premium Proxy {}", branding::VERSION);
+    activity.small_image = discord_config.small_image;
+    activity.small_text = "Licensed";
+    activity.buttons = {
+        { "Scarface Premium Proxy Discord", discord_config.discord_url },
+        { "Scarface Premium Proxy Website", discord_config.website_url },
+    };
+
+    discord_presence_ = std::make_unique<DiscordPresence>(std::move(application_id), std::move(activity));
+
+    // The game connecting to the proxy is the closest thing to "in game".
+    presence_handles_.emplace_back(
+        dispatcher_,
+        event::Type::ClientConnect,
+        dispatcher_.append_listener(event::Type::ClientConnect, [this](const event::Event&) {
+            discord_presence_->set_details("Currently In-game");
+        })
+    );
+    presence_handles_.emplace_back(
+        dispatcher_,
+        event::Type::ClientDisconnect,
+        dispatcher_.append_listener(event::Type::ClientDisconnect, [this](const event::Event&) {
+            discord_presence_->set_details("Waiting for Growtopia");
+        })
+    );
 }
 
 Core::~Core()

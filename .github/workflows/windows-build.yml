@@ -40,6 +40,7 @@ jobs:
           -DGTPROXY_BUILD_VERSION=${{ github.run_number }}
           -DGTPROXY_LICENSE_SERVER=${{ env.LICENSE_SERVER }}
           -DGTPROXY_LICENSE_PUBLIC_KEY=${{ env.LICENSE_PUBLIC_KEY }}
+          -DGTPROXY_DISCORD_APP_ID=${{ vars.GTPROXY_DISCORD_APP_ID }}
 
       - name: Build
         run: cmake --build build --target ScarfaceProxy

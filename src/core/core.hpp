@@ -23,6 +23,7 @@
 #include "handlers/ping_name_handler.hpp"
 #include "handlers/proxy_menu_handler.hpp"
 #include "handlers/spam_handler.hpp"
+#include "discord_presence.hpp"
 #include "../command/command_handler.hpp"
 #include "../network/client.hpp"
 #include "../network/server.hpp"
@@ -46,6 +47,7 @@ public:
 
 private:
     void register_feature_commands();
+    void start_discord_presence();
 
     Config config_;
     std::atomic<bool> running_;
@@ -56,6 +58,8 @@ private:
     std::unique_ptr<network::Server> server_;
     std::unique_ptr<network::Client> client_;
     std::unique_ptr<WebServer> web_server_;
+    std::unique_ptr<DiscordPresence> discord_presence_;
+    std::vector<event::ScopedHandle> presence_handles_;
 
     std::unique_ptr<handlers::ConnectionHandler> connection_handler_;
     std::unique_ptr<handlers::ForwardingHandler> forwarding_handler_;

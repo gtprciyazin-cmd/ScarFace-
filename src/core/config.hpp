@@ -47,6 +47,18 @@ public:
         bool ping_in_name{ true };
     };
 
+    // Discord Rich Presence. The application id picks the Discord app whose
+    // name ("Scarface Premium Proxy") and uploaded art are shown; empty uses
+    // the one built into the exe.
+    struct DiscordConfig {
+        bool enabled{ true };
+        std::string application_id{};
+        std::string large_image{ "scarface" };
+        std::string small_image{ "verified" };
+        std::string discord_url{};
+        std::string website_url{};
+    };
+
     // Saved once the key is validated, so it is not asked for again.
     struct LicenseConfig {
         std::string key;
@@ -58,6 +70,7 @@ public:
         LogConfig log;
         CommandConfig command;
         FeatureConfig features;
+        DiscordConfig discord;
         LicenseConfig license;
     };
 
@@ -73,6 +86,7 @@ public:
     [[nodiscard]] const CommandConfig& get_command_config() const { return config_.command; }
     [[nodiscard]] const FeatureConfig& get_feature_config() const { return config_.features; }
     [[nodiscard]] FeatureConfig& get_feature_config() { return config_.features; }
+    [[nodiscard]] const DiscordConfig& get_discord_config() const { return config_.discord; }
     [[nodiscard]] const LicenseConfig& get_license_config() const { return config_.license; }
     [[nodiscard]] LicenseConfig& get_license_config() { return config_.license; }
 
