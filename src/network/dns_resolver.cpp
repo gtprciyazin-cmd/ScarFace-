@@ -33,25 +33,50 @@ std::unique_ptr<DnsProvider> create_dns_provider(const std::string& name)
 }
 
 DnsResolver::DnsResolver(std::unique_ptr<DnsProvider> provider)
-    : provider_{ std::move(provider) }
 {
+    providers_.push_back(std::move(provider));
 
+    std::vector<std::unique_ptr<DnsProvider>> fallbacks{};
+    fallbacks.push_back(std::make_unique<CloudflareDnsProvider>());
+    fallbacks.push_back(std::make_unique<GoogleDnsProvider>());
+    fallbacks.push_back(std::make_unique<CloudflareIpDnsProvider>());
+    fallbacks.push_back(std::make_unique<GoogleIpDnsProvider>());
+    for (auto& fallback : fallbacks) {
+        if (fallback->get_host() != providers_.front()->get_host()) {
+            providers_.push_back(std::move(fallback));
+        }
+    }
 }
 
 DnsResult DnsResolver::resolve_domain(const std::string& domain) const
+{
+    DnsResult result{ DnsStatus::ServerFail, {} };
+    for (const auto& provider : providers_) {
+        result = resolve_with(*provider, domain);
+        // A definite answer, good or bad, is the name's; only failures to
+        // reach the service are worth another try.
+        if (result.status != DnsStatus::ServerFail) {
+            return result;
+        }
+        spdlog::warn("DNS over {} failed for {}, trying the next service", provider->get_host(), domain);
+    }
+    return result;
+}
+
+DnsResult DnsResolver::resolve_with(const DnsProvider& provider, const std::string& domain)
 {
     httplib::Headers headers{
         {"Accept", "application/dns-json"}
     };
 
-    httplib::Client cli{ fmt::format("https://{}", provider_->get_host()) };
+    httplib::Client cli{ fmt::format("https://{}", provider.get_host()) };
 
     cli.set_connection_timeout(5);
     cli.set_read_timeout(10);
     cli.set_write_timeout(5);
 
     httplib::Result res{ cli.Get(
-        fmt::format("{}?name={}&type=A", provider_->get_path(), domain),
+        fmt::format("{}?name={}&type=A", provider.get_path(), domain),
         headers
     ) };
 

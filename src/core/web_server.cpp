@@ -27,6 +27,11 @@ WebServer::WebServer(
 
     if (!https_server_.bind_to_port("0.0.0.0", 443)) {
         spdlog::error("Failed to bind to port 443");
+        // Without it Growtopia cannot fetch its server list and never connects.
+        spdlog::error(
+            "Port 443 kullanimda: baska bir program (Skype, VMware, IIS, baska bir proxy...) onu tutuyor. "
+            "O programi kapatip proxy'yi yeniden ac. Hangisi oldugunu gormek icin: netstat -ano | findstr :443"
+        );
         return;
     }
 
@@ -105,6 +110,11 @@ void WebServer::listen_internal()
         std::string resolved_ip = dns_resolver_.resolve_ip(server_address);
 
         if (resolved_ip.empty()) {
+            spdlog::error(
+                "Growtopia sunucusunun adresi bulunamadi ({}): internet baglantini, antivirus/guvenlik duvarini "
+                "ve DNS engellerini kontrol et.",
+                server_address
+            );
             res.status = 500;
             res.set_content("Failed to resolve server address", "text/plain");
             return true;
