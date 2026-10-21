@@ -49,6 +49,8 @@ public:
         bool public_gates{ false };
         bool door_id{ true };
         bool instant_dice{ true };
+        bool fast_trash{ false };
+        bool auto_access{ false };
     };
 
     // Discord Rich Presence. The application id picks the Discord app whose

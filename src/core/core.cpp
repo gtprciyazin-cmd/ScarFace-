@@ -73,6 +73,8 @@ Core::Core()
     entrance_color_handler_ = std::make_unique<handlers::EntranceColorHandler>(dispatcher_, *server_, config_);
     door_id_handler_ = std::make_unique<handlers::DoorIdHandler>(dispatcher_, *server_, config_);
     dice_handler_ = std::make_unique<handlers::DiceHandler>(dispatcher_, *server_, config_);
+    fast_trash_handler_ = std::make_unique<handlers::FastTrashHandler>(dispatcher_, *client_, *server_, config_);
+    auto_access_handler_ = std::make_unique<handlers::AutoAccessHandler>(dispatcher_, *client_, *server_, *dialog_interceptor_, config_);
     proxy_menu_handler_ = std::make_unique<handlers::ProxyMenuHandler>(dispatcher_, *server_, scheduler_, *quick_wrench_handler_, *roulette_handler_, *mod_alert_handler_, *fun_facts_handler_, *fast_drop_handler_, *auto_collect_handler_, *hotkey_handler_, *pathfind_handler_, *spam_handler_, *ping_name_handler_, *version_handler_);
     command_handler_ = std::make_unique<command::CommandHandler>(config_, dispatcher_, scheduler_, *server_, *client_);
     register_feature_commands();
@@ -210,6 +212,12 @@ void Core::register_menu()
     add("fastdrop", "`2Enable `9Fast Drop",
         "Enables Fast Drop Without Additional Dialogs, `2/count [amount]`` For Specific Amount.",
         toggle(*fast_drop_handler_), "menu_fastdrop");
+    add("fasttrash", "`2Enable `9Fast Trash/Recycle",
+        "Enables Fast Trash/Recycle Without Additional Dialogs. Locks Always Ask First.",
+        toggle(*fast_trash_handler_));
+    add("autoaccess", "`2Enable `9Auto Access",
+        "It Allows You To Automatically Accept Any Access From Any Given Lock.",
+        toggle(*auto_access_handler_));
 
     menu.add_section("Roulette & Games");
     add("wrench", "`2Enable `9Wrench `#Pull",
