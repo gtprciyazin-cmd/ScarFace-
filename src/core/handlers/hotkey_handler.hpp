@@ -45,11 +45,15 @@ public:
     [[nodiscard]] static int key_from_name(std::string_view name);
     [[nodiscard]] static std::string name_from_key(int virtual_key);
 
+    // True while the Growtopia window is in front (always false off Windows).
+    [[nodiscard]] static bool growtopia_focused();
+    // True while Shift is held down (always false off Windows).
+    [[nodiscard]] static bool shift_held();
+
 private:
     void toggle_autocollect();
 #ifdef _WIN32
     void run();
-    [[nodiscard]] static bool growtopia_focused();
 #endif
 
     std::shared_ptr<Scheduler> scheduler_;

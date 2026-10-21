@@ -12,6 +12,7 @@
 #include "../../packet/packet_helper.hpp"
 #include "../../packet/packet_variant.hpp"
 #include "../../world/world.hpp"
+#include "hotkey_handler.hpp"
 
 namespace core::handlers {
 namespace {
@@ -57,6 +58,11 @@ void PathfindHandler::on_tile_change(const event::Event& event)
         return; // Not in a world yet.
     }
 
+    // Only Shift + Click teleports; plain clicks punch and place as usual.
+    if (!HotkeyHandler::shift_held() || !HotkeyHandler::growtopia_focused()) {
+        return;
+    }
+
     // Take over the click: no punch/place, teleport instead.
     evt->cancel();
     teleport(pkt->int_x, pkt->int_y);
@@ -79,6 +85,9 @@ void PathfindHandler::teleport(const int tile_x, const int tile_y)
     state.net_id = net_id;
     state.pos_x = px;
     state.pos_y = py;
+    // No punch or place happened: the client sends -1 for the tile then.
+    state.game_packet.int_x = -1;
+    state.game_packet.int_y = -1;
     std::ignore = packet::PacketHelper::write(state, client_);
 
     // Keep the proxy's own idea of where we are in sync.

@@ -267,6 +267,37 @@ struct TileApplyDamage : GamePacket<PacketId::TileApplyDamage, PACKET_TILE_APPLY
     }
 };
 
+// Server -> client item animation. Mode 3 flies an item from one player to
+// another, which is how a consumable thrown at someone shows up.
+struct ItemEffect : GamePacket<PacketId::ItemEffect, PACKET_ITEM_EFFECT> {
+    static constexpr std::uint8_t PLAYER_TO_PLAYER{ 3 };
+
+    std::uint8_t mode{ 0 };
+    int32_t target_net_id{ -1 };
+    int32_t thrower_net_id{ -1 };
+    int32_t item_id{ 0 };
+
+    bool read(const Payload& payload) override
+    {
+        const auto game{ get_payload_if<GamePayload>(payload) };
+        if (!game) {
+            return false;
+        }
+
+        game_packet = game->packet;
+        mode = game_packet.pad[2];
+        target_net_id = static_cast<int32_t>(game_packet.net_id);
+        thrower_net_id = game_packet.item_net_id;
+        item_id = game_packet.int_x;
+        return true;
+    }
+
+    Payload write() override
+    {
+        return GamePayload{ game_packet, extra };
+    }
+};
+
 // Client -> server when the player walks into or punches a door, portal...
 struct TileActivateRequest : GamePacket<PacketId::TileActivateRequest, PACKET_TILE_ACTIVATE_REQUEST> {
     int32_t int_x{ 0 };
@@ -307,7 +338,8 @@ struct TileChangeRequest : GamePacket<PacketId::TileChangeRequest, PACKET_TILE_C
 
         int_x = game_packet.int_x;
         int_y = game_packet.int_y;
-        item_id = game_packet.item_net_id;
+        // The item in hand (18 = Fist) or the item placed, at header offset 20.
+        item_id = game_packet.item_id;
         return true;
     }
 
@@ -321,7 +353,7 @@ struct TileChangeRequest : GamePacket<PacketId::TileChangeRequest, PACKET_TILE_C
         game_payload.packet.type = PACKET_TYPE;
         game_payload.packet.int_x = int_x;
         game_payload.packet.int_y = int_y;
-        game_payload.packet.item_net_id = item_id;
+        game_payload.packet.item_id = item_id;
         return game_payload;
     }
 };

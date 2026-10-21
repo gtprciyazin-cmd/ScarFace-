@@ -115,6 +115,22 @@ std::string HotkeyHandler::name_from_key(const int virtual_key)
     return "F6";
 }
 
+bool HotkeyHandler::shift_held()
+{
+#ifdef _WIN32
+    return (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
+#else
+    return false;
+#endif
+}
+
+#ifndef _WIN32
+bool HotkeyHandler::growtopia_focused()
+{
+    return false;
+}
+#endif
+
 #ifdef _WIN32
 bool HotkeyHandler::growtopia_focused()
 {

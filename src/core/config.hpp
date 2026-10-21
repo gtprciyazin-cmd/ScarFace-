@@ -1,5 +1,6 @@
 #pragma once
 #include <string>
+#include <vector>
 
 namespace core {
 class Config {
@@ -56,6 +57,11 @@ public:
         bool last_spin_names{ false };
         bool hide_private_messages{ false };
         bool hide_level_text{ false };
+        bool consumable_autoban{ false };
+        // Snowball, Freeze Wand, Mud Glob, Rotten Egg, Egg, Tomato, Water
+        // Balloon, Lemon, Love Potion #8, Doppelganger Potion, g-Virus,
+        // Psychotic Bunny, War Balloons, Ghost-In-A-Jar, Mind-Ghost-In-A-Jar.
+        std::vector<int> autoban_consumables{ 1368, 274, 368, 614, 874, 962, 3064, 4666, 3400, 1988, 764, 618, 4844, 4846, 4848, 3722, 6080 };
     };
 
     // Discord Rich Presence. The application id picks the Discord app whose

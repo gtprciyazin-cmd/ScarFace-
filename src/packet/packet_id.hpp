@@ -36,6 +36,7 @@ enum class PacketId : std::uint32_t {
     ItemActivateRequest,
     TileApplyDamage,
     TileActivateRequest,
+    ItemEffect,
     Padding3 = 0x3000,
     OnSendToServer,
     OnSpawn,
@@ -126,6 +127,7 @@ inline const std::unordered_map<PacketType, PacketId> GAME_PACKET_MAP = {
     { PACKET_ITEM_ACTIVATE_REQUEST, PacketId::ItemActivateRequest },
     { PACKET_TILE_APPLY_DAMAGE, PacketId::TileApplyDamage },
     { PACKET_TILE_ACTIVATE_REQUEST, PacketId::TileActivateRequest },
+    { PACKET_ITEM_EFFECT, PacketId::ItemEffect },
 };
 
 [[nodiscard]] inline PacketId derive_packet_id(const TextPayload& payload)

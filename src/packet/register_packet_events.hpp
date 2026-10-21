@@ -120,6 +120,10 @@ inline void register_packet_events() {
         make_event_builder<game::TileActivateRequest, PacketId::TileActivateRequest>()
     );
     registry.register_event(
+        PacketId::ItemEffect,
+        make_event_builder<game::ItemEffect, PacketId::ItemEffect>()
+    );
+    registry.register_event(
         PacketId::OnNameChanged,
         make_event_builder<game::OnNameChanged, PacketId::OnNameChanged>()
     );

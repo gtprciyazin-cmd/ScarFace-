@@ -53,6 +53,7 @@ inline bool register_all_packets()
     registry.register_packet<game::State>();
     registry.register_packet<game::TileApplyDamage>();
     registry.register_packet<game::TileActivateRequest>();
+    registry.register_packet<game::ItemEffect>();
 
     registry.register_packet<game::OnSendToServer>();
     registry.register_packet<game::OnSuperMainStartAcceptLogonHrdxs47254722215a>();

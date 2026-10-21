@@ -293,7 +293,7 @@ void Core::register_menu()
         "Warns You When A Moderator Or An Invisible Player Is In The World.",
         toggle(*mod_alert_handler_));
     add("pathfind", "`2Enable `9Pathfinding Toggle",
-        "You Can Teleport To Any Position By Clicking It. Type `2/pathfind`` To Change It.",
+        "You Can Teleport To Any Position With `2Shift + Click``. Type `2/pathfind`` To Change It.",
         toggle(*pathfind_handler_));
 }
 

@@ -18,6 +18,7 @@
 #include "version_handler.hpp"
 #include "../../event/event.hpp"
 #include "../../network/server.hpp"
+#include "../../utils/text_parse.hpp"
 #include "../scheduler.hpp"
 
 namespace core::handlers {
@@ -62,6 +63,20 @@ public:
         // Button name of the feature's menu (see open_settings), or empty.
         std::string settings{};
     };
+
+    // A settings menu another feature provides: the menu draws the header,
+    // the Back button and Save, the feature draws the rest and applies what
+    // comes back.
+    struct CustomMenu {
+        int icon;
+        std::string title;
+        std::string subtitle;
+        std::function<std::string()> body;
+        std::function<void(const utils::TextParse& fields)> apply;
+    };
+
+    // Opened by `button` in the main menu; `dialog_name` must start with "scarface_".
+    void add_menu(std::string button, std::string dialog_name, CustomMenu menu);
 
     // Starts a new titled group of switches in the main menu.
     void add_section(std::string title);
@@ -115,6 +130,7 @@ private:
     // Checkbox values of the menu that was sent last (see send_dialog).
     mutable std::unordered_map<std::string, bool> shown_checkboxes_;
     std::unordered_map<std::string, std::function<void()>> settings_menus_;
+    std::unordered_map<std::string, CustomMenu> custom_menus_;
 
     event::ScopedHandle handle_;
 };

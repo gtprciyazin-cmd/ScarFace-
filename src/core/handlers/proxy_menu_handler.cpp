@@ -130,6 +130,19 @@ ProxyMenuHandler::ProxyMenuHandler(
     };
 }
 
+void ProxyMenuHandler::add_menu(std::string button, std::string dialog_name, CustomMenu menu)
+{
+    settings_menus_[std::move(button)] = [this, dialog_name] {
+        const auto& custom{ custom_menus_.at(dialog_name) };
+        std::string d{};
+        add_header(d, custom.icon, custom.title, custom.subtitle);
+        d += custom.body();
+        add_footer(d, dialog_name, true);
+        send_dialog(d);
+    };
+    custom_menus_.insert_or_assign(std::move(dialog_name), std::move(menu));
+}
+
 void ProxyMenuHandler::add_section(std::string title)
 {
     sections_.push_back({ std::move(title), {} });
@@ -308,7 +321,7 @@ void ProxyMenuHandler::open_pathfind() const
 {
     std::string d{};
     add_header(d, icons::PATHFIND, "Pathfind", "Tikladigin yere isinlar.");
-    d += fmt::format("add_checkbox|pf_enabled|`wTiklanan yere isinlan``|{}\n", onoff(pathfind_.is_enabled()));
+    d += fmt::format("add_checkbox|pf_enabled|`wShift + Tik ile isinlan``|{}\n", onoff(pathfind_.is_enabled()));
     d += "add_smalltext|`sDeneysel: sunucu uzak isinlanmalari reddedebilir.``|left|\n";
     add_footer(d, "scarface_pathfind", true);
     send_dialog(d);
@@ -423,6 +436,9 @@ void ProxyMenuHandler::on_dialog_return(const event::Event& event)
         if (open_settings(field("buttonClicked"))) {
             return;
         }
+    }
+    else if (const auto custom{ custom_menus_.find(name) }; custom != custom_menus_.end()) {
+        custom->second.apply(fields);
     }
     else if (name == "scarface_spam") {
         // Text and interval first, so starting uses the new message.
