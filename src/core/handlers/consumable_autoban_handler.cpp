@@ -10,7 +10,9 @@
 #include <spdlog/spdlog.h>
 
 #include "../../item/item_database.hpp"
+#include "../../packet/game/message.hpp"
 #include "../../packet/game/world.hpp"
+#include "../../packet/message/dialog_return.hpp"
 #include "../../packet/message/chat.hpp"
 #include "../../packet/packet_helper.hpp"
 #include "../../player/player.hpp"
@@ -38,6 +40,37 @@ ConsumableAutobanHandler::ConsumableAutobanHandler(event::Dispatcher& dispatcher
         item_effect_type,
         dispatcher.append_listener(item_effect_type, [this](const event::Event& e) { on_item_effect(e); })
     };
+    listen_trade<packet::PacketId::OnStartTrade>(dispatcher);
+    listen_trade<packet::PacketId::OnTradeStatus>(dispatcher);
+    listen_trade<packet::PacketId::OnForceTradeEnd>(dispatcher);
+    // Accepting the "are you sure" box is the last step before the items move.
+    listen_trade<packet::PacketId::DialogReturn>(dispatcher);
+}
+
+template <packet::PacketId Id>
+void ConsumableAutobanHandler::listen_trade(event::Dispatcher& dispatcher)
+{
+    constexpr auto type{ event::packet_event_type(Id) };
+    trade_handles_.emplace_back(
+        dispatcher,
+        type,
+        dispatcher.append_listener(type, [this](const event::Event& event) {
+            const auto* evt{ dynamic_cast<const event::TypedPacketEvent<Id>*>(&event) };
+            if (!evt) {
+                return;
+            }
+            if constexpr (Id == packet::PacketId::DialogReturn) {
+                const auto pkt{ evt->template get<packet::message::DialogReturn>() };
+                if (evt->direction != event::Direction::ServerBound || !pkt || !pkt->dialog_name.starts_with("trade")) {
+                    return;
+                }
+            }
+            else if (evt->direction != event::Direction::ClientBound) {
+                return;
+            }
+            last_trade_ = std::chrono::steady_clock::now();
+        })
+    );
 }
 
 void ConsumableAutobanHandler::set_enabled(const bool enabled)
@@ -62,6 +95,11 @@ void ConsumableAutobanHandler::on_item_effect(const event::Event& event)
         return;
     }
 
+    const auto now{ std::chrono::steady_clock::now() };
+    if (now - last_trade_ < TRADE_WINDOW) {
+        return;
+    }
+
     const auto pkt{ evt->get<packet::game::ItemEffect>() };
     auto& world{ world::World::instance() };
     const auto me{ world.get_local_net_id() };
@@ -82,7 +120,6 @@ void ConsumableAutobanHandler::on_item_effect(const event::Event& event)
         return; // Never staff.
     }
 
-    const auto now{ std::chrono::steady_clock::now() };
     if (const auto last{ last_ban_.find(pkt->thrower_net_id) }; last != last_ban_.end() && now - last->second < COOLDOWN) {
         return;
     }

@@ -68,6 +68,9 @@ inline bool register_all_packets()
     registry.register_packet<game::OnPersistentNPCMessageInputDependent>();
     registry.register_packet<game::ShowStartFTUEPopup>();
     registry.register_packet<game::OnWorldMenuFTUEMessageRequest>();
+    registry.register_packet<game::OnStartTrade>();
+    registry.register_packet<game::OnTradeStatus>();
+    registry.register_packet<game::OnForceTradeEnd>();
     registry.register_packet<game::OnDialogRequest>();
     registry.register_packet<game::OnTalkBubble>();
     registry.register_packet<game::OnConsoleMessage>();

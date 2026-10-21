@@ -31,6 +31,37 @@ TileRewriteHandler::TileRewriteHandler(event::Dispatcher& dispatcher, network::S
         tile_update_type,
         dispatcher.append_listener(tile_update_type, [this](const event::Event& e) { on_tile_update(e); }, event::Priority::Lowest)
     };
+    // Someone placing lava while we are in the world.
+    constexpr auto tile_change_type{ event::packet_event_type(packet::PacketId::TileChangeRequest) };
+    change_handle_ = event::ScopedHandle{
+        dispatcher,
+        tile_change_type,
+        dispatcher.append_listener(tile_change_type, [this](const event::Event& e) { on_tile_change(e); }, event::Priority::Lowest)
+    };
+}
+
+void TileRewriteHandler::on_tile_change(const event::Event& event)
+{
+    if (!lava_enabled()) {
+        return;
+    }
+
+    const auto* evt{ dynamic_cast<const event::TypedPacketEvent<packet::PacketId::TileChangeRequest>*>(&event) };
+    if (!evt || evt->direction != event::Direction::ClientBound) {
+        return;
+    }
+
+    const auto pkt{ evt->get<packet::game::TileChangeRequest>() };
+    const auto* item{ pkt ? item::ItemDatabase::instance().get_item(static_cast<std::uint32_t>(pkt->item_id)) : nullptr };
+    if (!item || item->item_type != item::ItemType::Lava) {
+        return;
+    }
+
+    auto rock{ *pkt };
+    rock.item_id = LAVA_ROCK;
+    if (packet::PacketHelper::write(rock, server_)) {
+        evt->cancel();
+    }
 }
 
 void TileRewriteHandler::set_gates_enabled(const bool enabled)

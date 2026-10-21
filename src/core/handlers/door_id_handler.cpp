@@ -133,7 +133,14 @@ void DoorIdHandler::on_send_to_server(const event::Event& event)
 void DoorIdHandler::on_join_request(const event::Event& event)
 {
     const auto* evt{ dynamic_cast<const event::TypedPacketEvent<packet::PacketId::JoinRequest>*>(&event) };
-    if (!evt || evt->direction != event::Direction::ServerBound || !is_enabled()) {
+    if (!evt || evt->direction != event::Direction::ServerBound) {
+        return;
+    }
+
+    // Joining from the world menu: whatever door came before is not this trip.
+    used_door_.reset();
+    pending_message_.reset();
+    if (!is_enabled()) {
         return;
     }
 

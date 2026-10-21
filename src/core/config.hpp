@@ -60,6 +60,8 @@ public:
         bool consumable_autoban{ false };
         bool anti_lava{ false };
         bool antipunch{ false };
+        bool zoom_out{ false };
+        float zoom_level{ 0.15f };
         // Snowball, Freeze Wand, Mud Glob, Rotten Egg, Egg, Tomato, Water
         // Balloon, Lemon, Love Potion #8, Doppelganger Potion, g-Virus,
         // Psychotic Bunny, War Balloons, Ghost-In-A-Jar, Mind-Ghost-In-A-Jar.

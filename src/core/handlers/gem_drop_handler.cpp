@@ -90,7 +90,9 @@ void GemDropHandler::on_object_change(const event::Event& event)
             return;
         }
         piles_[world.get_object_map().get_drop_id()] = Pile{ x, y, pkt->amount };
-        changed_.emplace(x, y);
+        if (is_enabled()) {
+            changed_.emplace(x, y);
+        }
     }
     else if (pkt->object_change_type == -3) {
         // An existing object merged, split or moved: the server re-sends gem
@@ -102,7 +104,7 @@ void GemDropHandler::on_object_change(const event::Event& event)
         }
         const auto before{ piles_.contains(uid) ? piles_[uid].amount : 0 };
         piles_[uid] = Pile{ x, y, pkt->amount };
-        if (pkt->amount > before) {
+        if (pkt->amount > before && is_enabled()) {
             changed_.emplace(x, y);
         }
     }

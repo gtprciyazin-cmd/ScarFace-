@@ -28,6 +28,7 @@
 #include "handlers/fast_trash_handler.hpp"
 #include "handlers/door_id_handler.hpp"
 #include "handlers/tile_rewrite_handler.hpp"
+#include "handlers/zoom_handler.hpp"
 #include "handlers/gem_drop_handler.hpp"
 #include "handlers/name_tag_handler.hpp"
 #include "handlers/proxy_menu_handler.hpp"
@@ -99,6 +100,7 @@ private:
     std::unique_ptr<handlers::ChatFilterHandler> chat_filter_handler_;
     std::unique_ptr<handlers::ConsumableAutobanHandler> consumable_autoban_handler_;
     std::unique_ptr<handlers::AntipunchHandler> antipunch_handler_;
+    std::unique_ptr<handlers::ZoomHandler> zoom_handler_;
     std::unique_ptr<handlers::ProxyMenuHandler> proxy_menu_handler_;
     std::unique_ptr<command::CommandHandler> command_handler_;
 

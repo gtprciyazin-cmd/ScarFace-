@@ -48,7 +48,7 @@ void WorldHandler::setup_join_request_handler()
 }
 
 template <packet::PacketId Id>
-void WorldHandler::clear_world_on(const event::Direction direction)
+void WorldHandler::clear_world_on(const event::Direction direction, const int8_t priority)
 {
     constexpr auto type{ event::packet_event_type(Id) };
     handles_.emplace_back(
@@ -59,7 +59,7 @@ void WorldHandler::clear_world_on(const event::Direction direction)
             if (evt && evt->direction == direction) {
                 world::World::instance().clear();
             }
-        })
+        }, priority)
     );
 }
 
@@ -69,7 +69,8 @@ void WorldHandler::setup_leave_handlers()
     // as if the player were still standing in it (spam, ping name, auto collect).
     clear_world_on<packet::PacketId::QuitToExit>(event::Direction::ServerBound);
     clear_world_on<packet::PacketId::OnRequestWorldSelectMenu>(event::Direction::ClientBound);
-    clear_world_on<packet::PacketId::OnSendToServer>(event::Direction::ClientBound);
+    // ConnectionHandler cancels the redirect at normal priority to send its own copy.
+    clear_world_on<packet::PacketId::OnSendToServer>(event::Direction::ClientBound, event::Priority::FairlyHigh);
 
     for (const auto type : { event::Type::ClientDisconnect, event::Type::ServerDisconnect }) {
         handles_.emplace_back(

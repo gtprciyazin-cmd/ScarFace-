@@ -156,4 +156,8 @@ using OnPersistentNPCMessage = PassthroughVariant<PacketId::OnPersistentNPCMessa
 using OnPersistentNPCMessageInputDependent = PassthroughVariant<PacketId::OnPersistentNPCMessageInputDependent>;
 using ShowStartFTUEPopup = PassthroughVariant<PacketId::ShowStartFTUEPopup>;
 using OnWorldMenuFTUEMessageRequest = PassthroughVariant<PacketId::OnWorldMenuFTUEMessageRequest>;
+// The trade window opening, changing and closing.
+using OnStartTrade = PassthroughVariant<PacketId::OnStartTrade>;
+using OnTradeStatus = PassthroughVariant<PacketId::OnTradeStatus>;
+using OnForceTradeEnd = PassthroughVariant<PacketId::OnForceTradeEnd>;
 }

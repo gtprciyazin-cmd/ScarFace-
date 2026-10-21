@@ -40,6 +40,7 @@ private:
     bool patch(std::vector<std::byte>& data, std::size_t offset, const world::Tile& tile) const;
     void on_map_data(const event::Event& event);
     void on_tile_update(const event::Event& event);
+    void on_tile_change(const event::Event& event);
     void tell_to_rejoin() const;
 
     network::Server& server_;
@@ -47,5 +48,6 @@ private:
 
     event::ScopedHandle map_handle_;
     event::ScopedHandle update_handle_;
+    event::ScopedHandle change_handle_;
 };
 }

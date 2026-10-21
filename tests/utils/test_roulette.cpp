@@ -89,3 +89,11 @@ TEST(RouletteTest, TagsGoBehindTheChatPrefix)
     EXPECT_EQ(utils::roulette::tag_message("CP:0_PL:0_OID:_CT:[W]_ `6<`wBob``>`` hi", "`4[FAKE]``"),
         "CP:0_PL:0_OID:_CT:[W]_ `4[FAKE]`` `6<`wBob``>`` hi");
 }
+
+TEST(RouletteTest, TitlesDoNotMakeARealSpinFake)
+{
+    const std::string spin{ "`7[```9Bob of Legend`` spun the wheel and got `47``!`7]``" };
+    EXPECT_TRUE(utils::roulette::is_real_spin(spin, 2000, std::string_view{ "`9Bob of Legend``" }));
+    EXPECT_TRUE(utils::roulette::is_real_spin("`7[```wDr. Bob of Legend`` spun the wheel and got `47``!`7]``", 2000, std::string_view{ "`wDr. Bob of Legend``" }));
+    EXPECT_TRUE(utils::roulette::is_real_spin(spin, 2000, std::string_view{ "`wBob``" }));
+}

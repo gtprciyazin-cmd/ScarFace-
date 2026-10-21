@@ -53,6 +53,9 @@ enum class PacketId : std::uint32_t {
     OnPersistentNPCMessageInputDependent,
     ShowStartFTUEPopup,
     OnWorldMenuFTUEMessageRequest,
+    OnStartTrade,
+    OnTradeStatus,
+    OnForceTradeEnd,
     Unknown = std::numeric_limits<std::uint32_t>::max(),
 };
 
@@ -111,6 +114,9 @@ inline const std::unordered_map<std::string_view, PacketId> VARIANT_FUNCTION_MAP
     { "OnPersistentNPCMessageInputDependent", PacketId::OnPersistentNPCMessageInputDependent },
     { "ShowStartFTUEPopup", PacketId::ShowStartFTUEPopup },
     { "OnWorldMenuFTUEMessageRequest", PacketId::OnWorldMenuFTUEMessageRequest },
+    { "OnStartTrade", PacketId::OnStartTrade },
+    { "OnTradeStatus", PacketId::OnTradeStatus },
+    { "OnForceTradeEnd", PacketId::OnForceTradeEnd },
 };
 
 inline const std::unordered_map<PacketType, PacketId> GAME_PACKET_MAP = {

@@ -156,6 +156,18 @@ inline void register_packet_events() {
         make_event_builder<game::OnWorldMenuFTUEMessageRequest, PacketId::OnWorldMenuFTUEMessageRequest>()
     );
     registry.register_event(
+        PacketId::OnStartTrade,
+        make_event_builder<game::OnStartTrade, PacketId::OnStartTrade>()
+    );
+    registry.register_event(
+        PacketId::OnTradeStatus,
+        make_event_builder<game::OnTradeStatus, PacketId::OnTradeStatus>()
+    );
+    registry.register_event(
+        PacketId::OnForceTradeEnd,
+        make_event_builder<game::OnForceTradeEnd, PacketId::OnForceTradeEnd>()
+    );
+    registry.register_event(
         PacketId::OnDialogRequest,
         make_event_builder<game::OnDialogRequest, PacketId::OnDialogRequest>()
     );

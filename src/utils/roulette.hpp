@@ -149,26 +149,25 @@ namespace utils::roulette {
     }
 
     if (bubble_owner) {
-        auto owner{ strip_color_codes(*bubble_owner) };
-        // Titles around the name: "Dr. Name", "Name of Legend".
-        if (owner.starts_with("Dr.")) {
-            owner.erase(0, 3);
-        }
-        if (owner.ends_with(" of Legend")) {
-            owner.erase(owner.size() - 10);
-        }
-        const auto trim{ [](std::string& s) {
-            s.erase(0, s.find_first_not_of(' '));
-            s.erase(s.find_last_not_of(' ') + 1);
+        // Titles around the name ("Dr. Name", "Name of Legend") may be on
+        // either side, so compare the bare names.
+        const auto bare_name{ [](std::string name) {
+            const auto trim{ [](std::string& s) {
+                s.erase(0, s.find_first_not_of(' '));
+                s.erase(s.find_last_not_of(' ') + 1);
+            } };
+            trim(name);
+            if (name.starts_with("Dr.")) {
+                name.erase(0, 3);
+                trim(name);
+            }
+            if (name.ends_with(" of Legend")) {
+                name.erase(name.size() - 10);
+                trim(name);
+            }
+            return name;
         } };
-        auto spinner{ spin->spinner };
-        trim(owner);
-        trim(spinner);
-        if (spinner.starts_with("Dr.")) {
-            spinner.erase(0, 3);
-            trim(spinner);
-        }
-        if (owner != spinner) {
+        if (bare_name(strip_color_codes(*bubble_owner)) != bare_name(spin->spinner)) {
             return false;
         }
     }

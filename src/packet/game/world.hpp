@@ -198,10 +198,18 @@ struct SendMapData : GamePacket<PacketId::SendMapData, PACKET_SEND_MAP_DATA> {
             return {};
         }
 
-        GamePayload game_payload{};
-        game_payload.packet.type = PACKET_TYPE;
-        game_payload.packet.net_id = -1;
-        game_payload.extra = extra;
+        // The server's header (clock, tile coordinates) unless the proxy
+        // built this packet itself.
+        GamePayload game_payload{ game_packet, extra };
+        if (game_packet.type != PACKET_TYPE) {
+            game_payload.packet.type = PACKET_TYPE;
+            game_payload.packet.net_id = static_cast<std::uint32_t>(-1);
+        }
+        // The extra data read from the network ends with the packet's NUL,
+        // which PacketHelper::write adds again.
+        if (const auto size{ game_packet.data_size }; size > 0 && size < game_payload.extra.size()) {
+            game_payload.extra.resize(size);
+        }
 
         return game_payload;
     }
@@ -228,10 +236,18 @@ struct SendTileUpdateData : GamePacket<PacketId::SendTileUpdateData, PACKET_SEND
             return {};
         }
 
-        GamePayload game_payload{};
-        game_payload.packet.type = PACKET_TYPE;
-        game_payload.packet.net_id = -1;
-        game_payload.extra = extra;
+        // The server's header (clock, tile coordinates) unless the proxy
+        // built this packet itself.
+        GamePayload game_payload{ game_packet, extra };
+        if (game_packet.type != PACKET_TYPE) {
+            game_payload.packet.type = PACKET_TYPE;
+            game_payload.packet.net_id = static_cast<std::uint32_t>(-1);
+        }
+        // The extra data read from the network ends with the packet's NUL,
+        // which PacketHelper::write adds again.
+        if (const auto size{ game_packet.data_size }; size > 0 && size < game_payload.extra.size()) {
+            game_payload.extra.resize(size);
+        }
 
         return game_payload;
     }
@@ -349,7 +365,8 @@ struct TileChangeRequest : GamePacket<PacketId::TileChangeRequest, PACKET_TILE_C
             return {};
         }
 
-        GamePayload game_payload{};
+        // Keep the rest of the server's header (who placed it, flags...).
+        GamePayload game_payload{ game_packet, {} };
         game_payload.packet.type = PACKET_TYPE;
         game_payload.packet.int_x = int_x;
         game_payload.packet.int_y = int_y;

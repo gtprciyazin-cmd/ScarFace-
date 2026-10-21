@@ -21,6 +21,8 @@
 #include "../command/commands/nick_command.hpp"
 #include "../command/commands/action_command.hpp"
 #include "../command/commands/spam_command.hpp"
+#include "../command/commands/tp_command.hpp"
+#include "../command/commands/zoom_command.hpp"
 #include "../command/commands/count_command.hpp"
 #include "../command/commands/collect_key_command.hpp"
 #include "../command/commands/rmode_command.hpp"
@@ -81,6 +83,7 @@ Core::Core()
     chat_filter_handler_ = std::make_unique<handlers::ChatFilterHandler>(dispatcher_, *server_, config_);
     consumable_autoban_handler_ = std::make_unique<handlers::ConsumableAutobanHandler>(dispatcher_, *server_, *world_manage_handler_, config_);
     antipunch_handler_ = std::make_unique<handlers::AntipunchHandler>(dispatcher_, *server_, config_);
+    zoom_handler_ = std::make_unique<handlers::ZoomHandler>(dispatcher_, scheduler_, *server_, config_);
     proxy_menu_handler_ = std::make_unique<handlers::ProxyMenuHandler>(dispatcher_, *server_, scheduler_, *quick_wrench_handler_, *roulette_handler_, *mod_alert_handler_, *fun_facts_handler_, *fast_drop_handler_, *auto_collect_handler_, *hotkey_handler_, *pathfind_handler_, *spam_handler_, *name_tag_handler_, *version_handler_);
     command_handler_ = std::make_unique<command::CommandHandler>(config_, dispatcher_, scheduler_, *server_, *client_);
     register_feature_commands();
@@ -149,6 +152,13 @@ void Core::register_feature_commands()
         [this](const bool enabled) { roulette_handler_->set_enabled(enabled); }
     ));
     registry.add(std::make_unique<command::SpamCommand>(*spam_handler_));
+    registry.add(std::make_unique<command::TpCommand>(*pathfind_handler_));
+    registry.add(std::make_unique<command::ActionCommand>(
+        "pos",
+        "Show the tile you are standing on",
+        [this] { pathfind_handler_->show_position(); }
+    ));
+    registry.add(std::make_unique<command::ZoomCommand>(*zoom_handler_));
     registry.add(std::make_unique<command::ActionCommand>(
         "pms",
         "Show the private messages that were hidden",
@@ -275,6 +285,9 @@ void Core::register_menu()
     add("doorid", "`9Reveal Door ID Whenever Possible",
         "When You Enter A Door That Redirects To Another World - DoorID Will Appear In Console (If Exists).",
         toggle(*door_id_handler_));
+    add("zoom", "`2Enable `9Zoom Out",
+        "Lets You Zoom Out To See The Whole World. `2/zoom 0.1``-`28.8`` Sets How Far, The Mouse Wheel Undoes It.",
+        toggle(*zoom_handler_));
     add("funfacts", "`9Show Fun Facts",
         "Will Regularly Show Fun Facts.",
         toggle(*fun_facts_handler_));
@@ -318,7 +331,7 @@ void Core::register_menu()
         "Bans Players Who Throw Listed Consumables At You In Your World. Pick Them In `9Ayarla``.",
         toggle(*consumable_autoban_handler_), "menu_autoban");
     add("pathfind", "`2Enable `9Pathfinding Toggle",
-        "You Can Teleport To Any Position With `2Shift + Click``. Type `2/pathfind`` To Change It.",
+        "`2Shift + Wrench`` A Player To Teleport To Them, `2Shift + Click`` A Tile In Reach, Or `2/tp x y`` / `2/tp name`` (`2/pos`` Shows Your Tile).",
         toggle(*pathfind_handler_));
 }
 

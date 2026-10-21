@@ -20,9 +20,14 @@ namespace core::handlers {
 namespace {
     constexpr auto dialog_event_type{ event::packet_event_type(packet::PacketId::OnDialogRequest) };
 
+    // Every kind of lock always asks (the ids cover a missing items.dat).
     [[nodiscard]] bool is_protected(const int item_id)
     {
-        return item_id == item::locks::WORLD_LOCK || item_id == item::locks::DIAMOND_LOCK || item_id == item::locks::BLUE_GEM_LOCK;
+        if (item_id == item::locks::WORLD_LOCK || item_id == item::locks::DIAMOND_LOCK || item_id == item::locks::BLUE_GEM_LOCK) {
+            return true;
+        }
+        const auto* item{ item::ItemDatabase::instance().get_item(static_cast<std::uint32_t>(item_id)) };
+        return item && item->item_type == item::ItemType::Lock;
     }
 }
 

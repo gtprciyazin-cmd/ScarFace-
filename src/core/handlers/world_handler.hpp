@@ -17,7 +17,7 @@ private:
     void setup_join_request_handler();
     void setup_leave_handlers();
     template <packet::PacketId Id>
-    void clear_world_on(event::Direction direction);
+    void clear_world_on(event::Direction direction, int8_t priority = event::Priority::Normal);
     void setup_on_spawn_handler();
     void setup_on_remove_handler();
     void setup_send_map_data_handler();
