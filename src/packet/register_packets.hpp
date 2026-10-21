@@ -62,6 +62,11 @@ inline bool register_all_packets()
     registry.register_packet<game::OnNameChanged>();
     registry.register_packet<game::OnCountryState>();
     registry.register_packet<game::OnRequestWorldSelectMenu>();
+    registry.register_packet<game::OnTutorialArrow>();
+    registry.register_packet<game::OnPersistentNPCMessage>();
+    registry.register_packet<game::OnPersistentNPCMessageInputDependent>();
+    registry.register_packet<game::ShowStartFTUEPopup>();
+    registry.register_packet<game::OnWorldMenuFTUEMessageRequest>();
     registry.register_packet<game::OnDialogRequest>();
     registry.register_packet<game::OnTalkBubble>();
     registry.register_packet<game::OnConsoleMessage>();

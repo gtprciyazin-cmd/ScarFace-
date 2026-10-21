@@ -132,6 +132,26 @@ inline void register_packet_events() {
         make_event_builder<game::OnRequestWorldSelectMenu, PacketId::OnRequestWorldSelectMenu>()
     );
     registry.register_event(
+        PacketId::OnTutorialArrow,
+        make_event_builder<game::OnTutorialArrow, PacketId::OnTutorialArrow>()
+    );
+    registry.register_event(
+        PacketId::OnPersistentNPCMessage,
+        make_event_builder<game::OnPersistentNPCMessage, PacketId::OnPersistentNPCMessage>()
+    );
+    registry.register_event(
+        PacketId::OnPersistentNPCMessageInputDependent,
+        make_event_builder<game::OnPersistentNPCMessageInputDependent, PacketId::OnPersistentNPCMessageInputDependent>()
+    );
+    registry.register_event(
+        PacketId::ShowStartFTUEPopup,
+        make_event_builder<game::ShowStartFTUEPopup, PacketId::ShowStartFTUEPopup>()
+    );
+    registry.register_event(
+        PacketId::OnWorldMenuFTUEMessageRequest,
+        make_event_builder<game::OnWorldMenuFTUEMessageRequest, PacketId::OnWorldMenuFTUEMessageRequest>()
+    );
+    registry.register_event(
         PacketId::OnDialogRequest,
         make_event_builder<game::OnDialogRequest, PacketId::OnDialogRequest>()
     );

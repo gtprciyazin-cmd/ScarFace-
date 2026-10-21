@@ -47,6 +47,11 @@ enum class PacketId : std::uint32_t {
     OnTextOverlay,
     OnCountryState,
     OnRequestWorldSelectMenu,
+    OnTutorialArrow,
+    OnPersistentNPCMessage,
+    OnPersistentNPCMessageInputDependent,
+    ShowStartFTUEPopup,
+    OnWorldMenuFTUEMessageRequest,
     Unknown = std::numeric_limits<std::uint32_t>::max(),
 };
 
@@ -100,6 +105,11 @@ inline const std::unordered_map<std::string_view, PacketId> VARIANT_FUNCTION_MAP
     { "OnTextOverlay", PacketId::OnTextOverlay },
     { "OnCountryState", PacketId::OnCountryState },
     { "OnRequestWorldSelectMenu", PacketId::OnRequestWorldSelectMenu },
+    { "OnTutorialArrow", PacketId::OnTutorialArrow },
+    { "OnPersistentNPCMessage", PacketId::OnPersistentNPCMessage },
+    { "OnPersistentNPCMessageInputDependent", PacketId::OnPersistentNPCMessageInputDependent },
+    { "ShowStartFTUEPopup", PacketId::ShowStartFTUEPopup },
+    { "OnWorldMenuFTUEMessageRequest", PacketId::OnWorldMenuFTUEMessageRequest },
 };
 
 inline const std::unordered_map<PacketType, PacketId> GAME_PACKET_MAP = {

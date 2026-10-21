@@ -38,6 +38,47 @@ struct AccessOffer {
     return AccessOffer{ match[1].str(), match[2].str() };
 }
 
+// The sender of an incoming private message (">> from (Name) in [WORLD] > hi",
+// routed to the [MSG] chat tab); nullopt for every other line, including the
+// "(Sent to ...)" confirmation of your own messages.
+[[nodiscard]] inline std::optional<std::string> private_message_sender(const std::string_view console_text)
+{
+    // The client strips everything up to and including the routing prefix.
+    std::string_view body{ console_text };
+    if (const auto ct{ body.find("CT:[") }; ct != std::string_view::npos) {
+        const auto end{ body.find("]_", ct) };
+        body.remove_prefix(end == std::string_view::npos ? body.size() : end + 2);
+    }
+    else if (const auto cp{ body.find("CP:") }; cp != std::string_view::npos) {
+        return std::nullopt; // Some other chat line.
+    }
+
+    auto plain{ strip_color_codes(body) };
+    plain.erase(0, plain.find_first_not_of(' '));
+
+    constexpr std::string_view from{ ">> from (" };
+    if (!plain.starts_with(from)) {
+        return std::nullopt;
+    }
+
+    auto sender{ plain.substr(from.size(), plain.find(')', from.size()) - from.size()) };
+    if (const auto in{ sender.find(" in ") }; in != std::string::npos) {
+        sender.resize(in);
+    }
+    return sender;
+}
+
+// "You need to be Level 5 to break that!" and its variants, never chat.
+[[nodiscard]] inline bool is_level_requirement(const std::string_view text)
+{
+    if (is_player_chat(text) || text.find("player_chat=") != std::string_view::npos) {
+        return false;
+    }
+
+    static const std::regex level{ R"(you need to be (at least )?level\s*\d{1,3})", std::regex::icase };
+    return std::regex_search(strip_color_codes(text), level);
+}
+
 // The trash dialog's "How many to `4destroy``? (you have 37)" -> 37; 0 when absent.
 [[nodiscard]] inline int trash_owned_amount(const std::string_view dialog)
 {

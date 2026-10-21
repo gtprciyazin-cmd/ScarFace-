@@ -1,6 +1,7 @@
 #include "spam_handler.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <string>
 #include <tuple>
@@ -15,6 +16,8 @@
 #include "../../packet/message/raw_text.hpp"
 #include "../../packet/packet_helper.hpp"
 #include "../../utils/chat_text.hpp"
+#include "../../utils/color_codes.hpp"
+#include "../../utils/game_text.hpp"
 #include "../../world/world.hpp"
 
 namespace core::handlers {
@@ -222,15 +225,21 @@ void SpamHandler::on_server_message(const event::Event& event)
         return;
     }
 
-    // Lines players say start with "CP:"; only the server's own notices count,
-    // so nobody can switch the spam off by typing the words.
-    if (pkt->text.starts_with("CP:")) {
+    // Only the server's own notices count, never anything a player can send
+    // (chat, bubbles, private messages), so nobody can switch the spam off.
+    if (utils::game_text::is_player_chat(pkt->text) || pkt->text.find("player_chat=") != std::string::npos) {
         return;
     }
 
-    // Stop as soon as the server complains, before the warning turns into a mute.
-    const auto text{ lowercase(pkt->text) };
-    if (text.find("spam detected") != std::string::npos || text.find("duct tape") != std::string::npos) {
+    // Stop as soon as the server complains or mutes us, before it gets worse.
+    const auto text{ lowercase(utils::strip_color_codes(pkt->text)) };
+    constexpr std::array STOP_SIGNS{
+        std::string_view{ "spam detected" },
+        std::string_view{ "duct tape has covered your mouth" },
+        std::string_view{ "cursed to (the world)" },
+        std::string_view{ "reality flickers" },
+    };
+    if (std::ranges::any_of(STOP_SIGNS, [&text](const std::string_view sign) { return text.find(sign) != std::string::npos; })) {
         set_enabled(false);
         spdlog::warn("Spam stopped: the server reported spam");
         send_log("`4Sunucu spam uyarisi verdi, spam durduruldu. ``Araligi artir.");

@@ -127,4 +127,33 @@ struct OnTextOverlay : VariantPacket<PacketId::OnTextOverlay> {
         return VariantPayload{ game_packet, variant };
     }
 };
+
+// A server call the proxy only needs to recognise (and maybe hide), kept as
+// it came.
+template <PacketId Id>
+struct PassthroughVariant : VariantPacket<Id> {
+    bool read(const Payload& payload) override
+    {
+        const auto var{ get_payload_if<VariantPayload>(payload) };
+        if (!var) {
+            return false;
+        }
+
+        this->variant = var->variant;
+        this->game_packet = var->game_packet;
+        return true;
+    }
+
+    Payload write() override
+    {
+        return VariantPayload{ this->game_packet, this->variant };
+    }
+};
+
+// Tutorial (first time user experience) hints.
+using OnTutorialArrow = PassthroughVariant<PacketId::OnTutorialArrow>;
+using OnPersistentNPCMessage = PassthroughVariant<PacketId::OnPersistentNPCMessage>;
+using OnPersistentNPCMessageInputDependent = PassthroughVariant<PacketId::OnPersistentNPCMessageInputDependent>;
+using ShowStartFTUEPopup = PassthroughVariant<PacketId::ShowStartFTUEPopup>;
+using OnWorldMenuFTUEMessageRequest = PassthroughVariant<PacketId::OnWorldMenuFTUEMessageRequest>;
 }

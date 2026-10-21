@@ -54,6 +54,8 @@ public:
         bool spin_tags{ true };
         bool reme_numbers{ true };
         bool last_spin_names{ false };
+        bool hide_private_messages{ false };
+        bool hide_level_text{ false };
     };
 
     // Discord Rich Presence. The application id picks the Discord app whose

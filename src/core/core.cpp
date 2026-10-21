@@ -78,6 +78,7 @@ Core::Core()
     dice_handler_ = std::make_unique<handlers::DiceHandler>(dispatcher_, *server_, config_);
     fast_trash_handler_ = std::make_unique<handlers::FastTrashHandler>(dispatcher_, *client_, *server_, config_);
     auto_access_handler_ = std::make_unique<handlers::AutoAccessHandler>(dispatcher_, *client_, *server_, *dialog_interceptor_, config_);
+    chat_filter_handler_ = std::make_unique<handlers::ChatFilterHandler>(dispatcher_, *server_, config_);
     proxy_menu_handler_ = std::make_unique<handlers::ProxyMenuHandler>(dispatcher_, *server_, scheduler_, *quick_wrench_handler_, *roulette_handler_, *mod_alert_handler_, *fun_facts_handler_, *fast_drop_handler_, *auto_collect_handler_, *hotkey_handler_, *pathfind_handler_, *spam_handler_, *name_tag_handler_, *version_handler_);
     command_handler_ = std::make_unique<command::CommandHandler>(config_, dispatcher_, scheduler_, *server_, *client_);
     register_feature_commands();
@@ -146,6 +147,11 @@ void Core::register_feature_commands()
         [this](const bool enabled) { roulette_handler_->set_enabled(enabled); }
     ));
     registry.add(std::make_unique<command::SpamCommand>(*spam_handler_));
+    registry.add(std::make_unique<command::ActionCommand>(
+        "pms",
+        "Show the private messages that were hidden",
+        [this] { chat_filter_handler_->show_hidden_messages(); }
+    ));
     registry.add(std::make_unique<command::ActionCommand>(
         "gems",
         "List the gem piles in this world",
@@ -267,6 +273,20 @@ void Core::register_menu()
     add("funfacts", "`9Show Fun Facts",
         "Will Regularly Show Fun Facts.",
         toggle(*fun_facts_handler_));
+
+    menu.add_section("Chat");
+    add("hidepm", "`8Hide `9Private Messages",
+        "Will Hide All `e[MSG]`` Private Messages. Usefull If Many Bots Spam Msg You. `2/pms`` Shows Them, Staff Always Shows.",
+        std::pair{
+            std::function<bool()>{ [this] { return chat_filter_handler_->hides_private_messages(); } },
+            std::function<void(bool)>{ [this](const bool on) { chat_filter_handler_->set_hide_private_messages(on); } },
+        });
+    add("hidelevel", "`8Hide `9Tutorial & \"You need to be Level\" Text",
+        "Will Hide All \"You need to be Level\" Messages And The Tutorial Arrows And Hints.",
+        std::pair{
+            std::function<bool()>{ [this] { return chat_filter_handler_->hides_level_text(); } },
+            std::function<void(bool)>{ [this](const bool on) { chat_filter_handler_->set_hide_level_text(on); } },
+        });
 
     menu.add_section("Safety");
     add("modalert", "`2Enable `9Auto Mod Detect",
