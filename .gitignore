@@ -22,3 +22,6 @@ CMakeSettings.json
 # macOS system files
 .DS_Store
 /build-*
+
+# Locally built release exe
+/dist
