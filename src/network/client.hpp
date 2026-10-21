@@ -43,5 +43,8 @@ private:
 
     event::Dispatcher& dispatcher_;
     ENetPeer* peer_;
+    // Whether the current peer ever finished connecting.
+    bool connected_{ false };
+    std::string target_;
 };
 }

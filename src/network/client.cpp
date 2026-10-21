@@ -1,5 +1,7 @@
 #include "client.hpp"
 
+#include <fmt/format.h>
+
 #include <stdexcept>
 #include <spdlog/spdlog.h>
 
@@ -49,6 +51,8 @@ bool Client::connect(const std::string& host, std::uint16_t port)
     address.port = port;
 
     peer_ = enet_host_connect(host_, &address, 2, 0);
+    connected_ = false;
+    target_ = fmt::format("{}:{}", host, port);
     return peer_ != nullptr;
 }
 
@@ -61,6 +65,7 @@ void Client::on_connect(ENetPeer* peer)
     );
 
     peer_ = peer;
+    connected_ = true;
 
     const event::ConnectionEvent evt{ event::Type::ServerConnect };
     dispatcher_.dispatch(evt);
@@ -115,7 +120,18 @@ void Client::on_disconnect(ENetPeer* peer)
         return;
     }
 
+    if (!connected_) {
+        // The handshake never got an answer: something on this PC or network
+        // stops the proxy's UDP traffic to the game server.
+        spdlog::error("Could not connect to the Growtopia server at {} (no answer).", target_);
+        spdlog::error(
+            "Growtopia sunucusuna baglanilamadi. Windows Guvenlik Duvari ya da antivirus ScarfaceProxy.exe'yi "
+            "engelliyor olabilir: exe'ye izin ver (ya da antivirus'te istisna ekle), VPN kullaniyorsan kapat, "
+            "sonra proxy'yi yonetici olarak yeniden ac."
+        );
+    }
     peer_ = nullptr;
+    connected_ = false;
 
     const event::ConnectionEvent evt{ event::Type::ServerDisconnect };
     dispatcher_.dispatch(evt);

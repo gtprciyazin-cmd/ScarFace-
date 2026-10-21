@@ -15,6 +15,7 @@
 #include "core/branding.hpp"
 #include "core/core.hpp"
 #include "core/embedded_resources.hpp"
+#include "core/firewall.hpp"
 #include "core/hosts_redirect.hpp"
 #include "core/logger.hpp"
 #include "license/license_guard.hpp"
@@ -281,6 +282,7 @@ int main()
         // Write the files the HTTPS web server needs if they are missing,
         // so the proxy runs as a single exe.
         core::ensure_embedded_resources();
+        core::allow_through_firewall();
 
         g_core = std::make_unique<core::Core>();
 

@@ -335,6 +335,9 @@ void Core::start_discord_presence()
         application_id = GTPROXY_DISCORD_APP_ID;
     }
 #endif
+    if (application_id.empty()) {
+        application_id = branding::DISCORD_APP_ID;
+    }
 
     utils::discord::Activity activity{};
     activity.details = "Waiting for Growtopia";
@@ -347,7 +350,7 @@ void Core::start_discord_presence()
     activity.small_image = discord_config.small_image;
     activity.small_text = "Licensed";
     activity.buttons = {
-        { "Scarface Premium Proxy Discord", discord_config.discord_url },
+        { "Scarface Premium Proxy Discord", discord_config.discord_url.empty() ? std::string{ branding::DISCORD_INVITE } : discord_config.discord_url },
         { "Scarface Premium Proxy Website", discord_config.website_url },
     };
 
