@@ -16,6 +16,19 @@ TEST(ChatTextTest, SanitizeCutsToTheLimitWithoutALoneBacktick)
 {
     EXPECT_EQ(sanitize_chat_message("abcdef", 4), "abcd");
     EXPECT_EQ(sanitize_chat_message("abc`2def", 4), "abc");
+    EXPECT_EQ(sanitize_chat_message("buy wl `", 120), "buy wl");
+    EXPECT_EQ(sanitize_chat_message("`2sell``", 120), "`2sell``");
+}
+
+TEST(ChatTextTest, SanitizeKeepsWholeUtf8Characters)
+{
+    // "ab" + U+015F (2 bytes): cutting at 3 bytes must not leave half of it.
+    EXPECT_EQ(sanitize_chat_message("ab\xc5\x9f", 3), "ab");
+}
+
+TEST(ChatTextTest, SanitizeDropsTextWithOnlyColourCodes)
+{
+    EXPECT_EQ(sanitize_chat_message("`2`4``", 120), "");
 }
 
 TEST(ChatTextTest, PingIsColouredBySpeed)

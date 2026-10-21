@@ -51,6 +51,8 @@ private:
     void stop();
     void tick();
     void on_server_message(const event::Event& event);
+    void on_player_input(const event::Event& event);
+    void on_spawn(const event::Event& event);
     void send_log(const std::string& msg) const;
 
     event::Dispatcher& dispatcher_;
@@ -64,5 +66,7 @@ private:
     std::chrono::steady_clock::time_point last_sent_{};
 
     event::ScopedHandle console_handle_;
+    event::ScopedHandle input_handle_;
+    event::ScopedHandle spawn_handle_;
 };
 }

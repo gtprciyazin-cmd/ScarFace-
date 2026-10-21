@@ -31,13 +31,35 @@ namespace utils {
 
     if (clean.size() > max_length) {
         clean.resize(max_length);
-        // Do not end on a lone backtick, which would swallow the next character.
-        if (clean.back() == '`') {
+        // Do not cut a multi-byte UTF-8 character in half.
+        while (!clean.empty() && (static_cast<unsigned char>(clean.back()) & 0xc0) == 0x80) {
+            clean.pop_back();
+        }
+        if (!clean.empty() && static_cast<unsigned char>(clean.back()) >= 0xc0) {
             clean.pop_back();
         }
     }
 
-    return clean;
+    // A lone backtick at the end would swallow the next character on screen.
+    while (!clean.empty() && clean.back() == '`' && (clean.size() < 2 || clean[clean.size() - 2] != '`')) {
+        clean.pop_back();
+        while (!clean.empty() && clean.back() == ' ') {
+            clean.pop_back();
+        }
+    }
+
+    // Only colour codes: the server ignores it.
+    bool visible{ false };
+    for (std::size_t i{ 0 }; i < clean.size() && !visible; ++i) {
+        if (clean[i] == '`') {
+            ++i;
+        }
+        else if (clean[i] != ' ') {
+            visible = true;
+        }
+    }
+
+    return visible ? clean : std::string{};
 }
 
 // Growtopia colour code for a ping: green below 100 ms, yellow below 200 ms,

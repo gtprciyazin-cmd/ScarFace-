@@ -221,7 +221,7 @@ void ProxyMenuHandler::open_spam() const
         SpamHandler::MAX_INTERVAL_S,
         spam_.get_interval()
     );
-    d += "add_smalltext|`sSadece bir dunyanin icindeyken yazar. Sunucu spam uyarisi verirse kendiliginden durur.``|left|\n";
+    d += "add_smalltext|`sSadece bir dunyanin icindeyken yazar. Sunucu spam uyarisi verirse kendiliginden durur. Komutlar (/ ile baslayan) spamlanamaz.``|left|\n";
     d += "add_smalltext|`sProxy kapaninca spam da kapanir; mesaj ve aralik kayitli kalir.``|left|\n";
     d += "add_spacer|small|\n";
     d += spam_.is_enabled()

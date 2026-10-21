@@ -10,7 +10,9 @@
 
 #include "../../packet/game/message.hpp"
 #include "../../packet/message/chat.hpp"
+#include "../../packet/game/world.hpp"
 #include "../../packet/message/input.hpp"
+#include "../../packet/message/raw_text.hpp"
 #include "../../packet/packet_helper.hpp"
 #include "../../utils/chat_text.hpp"
 #include "../../world/world.hpp"
@@ -18,6 +20,8 @@
 namespace core::handlers {
 namespace {
     constexpr auto console_message_type{ event::packet_event_type(packet::PacketId::OnConsoleMessage) };
+    constexpr auto input_type{ event::packet_event_type(packet::PacketId::Input) };
+    constexpr auto spawn_type{ event::packet_event_type(packet::PacketId::OnSpawn) };
 
     [[nodiscard]] std::string lowercase(std::string text)
     {
@@ -49,6 +53,16 @@ SpamHandler::SpamHandler(
         console_message_type,
         dispatcher_.append_listener(console_message_type, [this](const event::Event& e) { on_server_message(e); })
     };
+    input_handle_ = event::ScopedHandle{
+        dispatcher_,
+        input_type,
+        dispatcher_.append_listener(input_type, [this](const event::Event& e) { on_player_input(e); })
+    };
+    spawn_handle_ = event::ScopedHandle{
+        dispatcher_,
+        spawn_type,
+        dispatcher_.append_listener(spawn_type, [this](const event::Event& e) { on_spawn(e); })
+    };
 }
 
 SpamHandler::~SpamHandler()
@@ -68,6 +82,13 @@ void SpamHandler::set_enabled(bool enabled)
         enabled = false;
     }
 
+    // The server would run it as a command every few seconds (warps, paid
+    // broadcasts...), which is never what an auto message is for.
+    if (enabled && get_text().starts_with('/')) {
+        send_log("`4Komutlar spamlanamaz: ``mesaj / ile baslamasin.");
+        enabled = false;
+    }
+
     enabled_ = enabled;
     if (enabled_) {
         start();
@@ -82,8 +103,9 @@ const std::string& SpamHandler::set_text(const std::string_view text)
     config_.get_feature_config().spam_text = sanitize(text);
     std::ignore = config_.save();
 
-    if (enabled_ && get_text().empty()) {
+    if (enabled_ && (get_text().empty() || get_text().starts_with('/'))) {
         set_enabled(false);
+        send_log("`4Spam durduruldu: ``yeni mesaj bos ya da bir komut.");
     }
 
     return get_text();
@@ -148,16 +170,39 @@ void SpamHandler::tick()
         return;
     }
 
-    // A restart right after a message must not send the next one early.
+    // The server counts every line the player says, so wait a full interval
+    // after the last one (ours, typed by hand, or arriving in a world). The
+    // slack keeps timer jitter from skipping a whole period.
     const auto now{ std::chrono::steady_clock::now() };
-    if (now - last_sent_ < std::chrono::seconds{ MIN_INTERVAL_S }) {
+    if (now - last_sent_ < std::chrono::seconds{ get_interval() } - std::chrono::milliseconds{ 750 }) {
         return;
     }
 
-    packet::message::Input input{};
-    input.text = get_text();
-    if (packet::PacketHelper::write(input, client_)) {
+    // Exactly what the client sends when you chat; message::Input would drop
+    // the line break before "|text|".
+    if (client_.write(packet::message::make_raw_text(packet::NET_MESSAGE_GENERIC_TEXT, "action|input\n|text|" + get_text()))) {
         last_sent_ = now;
+    }
+}
+
+void SpamHandler::on_player_input(const event::Event& event)
+{
+    const auto* evt{ dynamic_cast<const event::TypedPacketEvent<packet::PacketId::Input>*>(&event) };
+    if (evt && evt->direction == event::Direction::ServerBound && !evt->canceled) {
+        last_sent_ = std::chrono::steady_clock::now();
+    }
+}
+
+void SpamHandler::on_spawn(const event::Event& event)
+{
+    const auto* evt{ dynamic_cast<const event::TypedPacketEvent<packet::PacketId::OnSpawn>*>(&event) };
+    if (!evt || evt->direction != event::Direction::ClientBound) {
+        return;
+    }
+
+    // Entered a world: nothing goes out the moment the player arrives.
+    if (const auto pkt{ evt->get<packet::game::OnSpawn>() }; pkt && pkt->type == "local") {
+        last_sent_ = std::chrono::steady_clock::now();
     }
 }
 
@@ -174,6 +219,12 @@ void SpamHandler::on_server_message(const event::Event& event)
 
     const auto pkt{ evt->get<packet::game::OnConsoleMessage>() };
     if (!pkt) {
+        return;
+    }
+
+    // Lines players say start with "CP:"; only the server's own notices count,
+    // so nobody can switch the spam off by typing the words.
+    if (pkt->text.starts_with("CP:")) {
         return;
     }
 
