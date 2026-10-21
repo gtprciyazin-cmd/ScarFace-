@@ -20,12 +20,14 @@
 #include "handlers/pathfind_handler.hpp"
 #include "handlers/fun_facts_handler.hpp"
 #include "handlers/version_handler.hpp"
+#include "handlers/antipunch_handler.hpp"
 #include "handlers/auto_access_handler.hpp"
 #include "handlers/chat_filter_handler.hpp"
+#include "handlers/consumable_autoban_handler.hpp"
 #include "handlers/dice_handler.hpp"
 #include "handlers/fast_trash_handler.hpp"
 #include "handlers/door_id_handler.hpp"
-#include "handlers/entrance_color_handler.hpp"
+#include "handlers/tile_rewrite_handler.hpp"
 #include "handlers/gem_drop_handler.hpp"
 #include "handlers/name_tag_handler.hpp"
 #include "handlers/proxy_menu_handler.hpp"
@@ -89,12 +91,14 @@ private:
     std::unique_ptr<handlers::SpamHandler> spam_handler_;
     std::unique_ptr<handlers::NameTagHandler> name_tag_handler_;
     std::unique_ptr<handlers::GemDropHandler> gem_drop_handler_;
-    std::unique_ptr<handlers::EntranceColorHandler> entrance_color_handler_;
+    std::unique_ptr<handlers::TileRewriteHandler> tile_rewrite_handler_;
     std::unique_ptr<handlers::DoorIdHandler> door_id_handler_;
     std::unique_ptr<handlers::DiceHandler> dice_handler_;
     std::unique_ptr<handlers::FastTrashHandler> fast_trash_handler_;
     std::unique_ptr<handlers::AutoAccessHandler> auto_access_handler_;
     std::unique_ptr<handlers::ChatFilterHandler> chat_filter_handler_;
+    std::unique_ptr<handlers::ConsumableAutobanHandler> consumable_autoban_handler_;
+    std::unique_ptr<handlers::AntipunchHandler> antipunch_handler_;
     std::unique_ptr<handlers::ProxyMenuHandler> proxy_menu_handler_;
     std::unique_ptr<command::CommandHandler> command_handler_;
 

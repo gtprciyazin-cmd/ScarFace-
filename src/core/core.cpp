@@ -73,12 +73,14 @@ Core::Core()
         name_tag_handler_->set_last_spin(net_id, spin.number, spin.color_code, std::chrono::milliseconds{ delay_ms });
     });
     gem_drop_handler_ = std::make_unique<handlers::GemDropHandler>(dispatcher_, scheduler_, *server_, config_);
-    entrance_color_handler_ = std::make_unique<handlers::EntranceColorHandler>(dispatcher_, *server_, config_);
+    tile_rewrite_handler_ = std::make_unique<handlers::TileRewriteHandler>(dispatcher_, *server_, config_);
     door_id_handler_ = std::make_unique<handlers::DoorIdHandler>(dispatcher_, *server_, config_);
     dice_handler_ = std::make_unique<handlers::DiceHandler>(dispatcher_, *server_, config_);
     fast_trash_handler_ = std::make_unique<handlers::FastTrashHandler>(dispatcher_, *client_, *server_, config_);
     auto_access_handler_ = std::make_unique<handlers::AutoAccessHandler>(dispatcher_, *client_, *server_, *dialog_interceptor_, config_);
     chat_filter_handler_ = std::make_unique<handlers::ChatFilterHandler>(dispatcher_, *server_, config_);
+    consumable_autoban_handler_ = std::make_unique<handlers::ConsumableAutobanHandler>(dispatcher_, *server_, *world_manage_handler_, config_);
+    antipunch_handler_ = std::make_unique<handlers::AntipunchHandler>(dispatcher_, *server_, config_);
     proxy_menu_handler_ = std::make_unique<handlers::ProxyMenuHandler>(dispatcher_, *server_, scheduler_, *quick_wrench_handler_, *roulette_handler_, *mod_alert_handler_, *fun_facts_handler_, *fast_drop_handler_, *auto_collect_handler_, *hotkey_handler_, *pathfind_handler_, *spam_handler_, *name_tag_handler_, *version_handler_);
     command_handler_ = std::make_unique<command::CommandHandler>(config_, dispatcher_, scheduler_, *server_, *client_);
     register_feature_commands();
@@ -266,7 +268,10 @@ void Core::register_menu()
         toggle(*gem_drop_handler_));
     add("gates", "`9Show Public Entrances/Gates",
         "Will Recolor All Entrances/Gates: `4Red`` = `4Closed``, `2Green`` = `2Public``.",
-        toggle(*entrance_color_handler_));
+        std::pair{
+            std::function<bool()>{ [this] { return tile_rewrite_handler_->gates_enabled(); } },
+            std::function<void(bool)>{ [this](const bool on) { tile_rewrite_handler_->set_gates_enabled(on); } },
+        });
     add("doorid", "`9Reveal Door ID Whenever Possible",
         "When You Enter A Door That Redirects To Another World - DoorID Will Appear In Console (If Exists).",
         toggle(*door_id_handler_));
@@ -288,10 +293,30 @@ void Core::register_menu()
             std::function<void(bool)>{ [this](const bool on) { chat_filter_handler_->set_hide_level_text(on); } },
         });
 
+    menu.add_menu("menu_autoban", "scarface_autoban", handlers::ProxyMenuHandler::CustomMenu{
+        2318, // Superpower - Ban Hammer
+        "Autoban Consumables List",
+        "Tick the consumables that get a player banned from your world.",
+        [this] { return consumable_autoban_handler_->settings_body(); },
+        [this](const utils::TextParse& fields) { consumable_autoban_handler_->apply_settings(fields); },
+    });
+
     menu.add_section("Safety");
     add("modalert", "`2Enable `9Auto Mod Detect",
         "Warns You When A Moderator Or An Invisible Player Is In The World.",
         toggle(*mod_alert_handler_));
+    add("antipunch", "`2Enable `9Antipunch",
+        "Punches From Other Players Won't Push You Around.",
+        toggle(*antipunch_handler_));
+    add("antilava", "`2Enable `9Anti Lava Damage",
+        "Lava Becomes A Harmless Solid Block For You, So You Won't Take Damage Or Die From It.",
+        std::pair{
+            std::function<bool()>{ [this] { return tile_rewrite_handler_->lava_enabled(); } },
+            std::function<void(bool)>{ [this](const bool on) { tile_rewrite_handler_->set_lava_enabled(on); } },
+        });
+    add("autoban", "`2Enable `9Consumables Autobanner `4(Beta)",
+        "Bans Players Who Throw Listed Consumables At You In Your World. Pick Them In `9Ayarla``.",
+        toggle(*consumable_autoban_handler_), "menu_autoban");
     add("pathfind", "`2Enable `9Pathfinding Toggle",
         "You Can Teleport To Any Position With `2Shift + Click``. Type `2/pathfind`` To Change It.",
         toggle(*pathfind_handler_));

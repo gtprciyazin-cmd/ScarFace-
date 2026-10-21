@@ -1,4 +1,4 @@
-#include "entrance_color_handler.hpp"
+#include "tile_rewrite_handler.hpp"
 
 #include <tuple>
 
@@ -15,7 +15,7 @@ namespace {
     constexpr auto tile_update_type{ event::packet_event_type(packet::PacketId::SendTileUpdateData) };
 }
 
-EntranceColorHandler::EntranceColorHandler(event::Dispatcher& dispatcher, network::Server& server, Config& config)
+TileRewriteHandler::TileRewriteHandler(event::Dispatcher& dispatcher, network::Server& server, Config& config)
     : server_{ server }
     , config_{ config }
 {
@@ -33,17 +33,51 @@ EntranceColorHandler::EntranceColorHandler(event::Dispatcher& dispatcher, networ
     };
 }
 
-void EntranceColorHandler::set_enabled(const bool enabled)
+void TileRewriteHandler::set_gates_enabled(const bool enabled)
 {
     config_.get_feature_config().public_gates = enabled;
     std::ignore = config_.save();
+    tell_to_rejoin();
+}
 
+void TileRewriteHandler::set_lava_enabled(const bool enabled)
+{
+    config_.get_feature_config().anti_lava = enabled;
+    std::ignore = config_.save();
+    tell_to_rejoin();
+}
+
+void TileRewriteHandler::tell_to_rejoin() const
+{
     packet::message::Log log{};
-    log.msg = "`oRe-enter the world to update the entrance colours.";
+    log.msg = "`oRe-enter the world for this to take effect.";
     std::ignore = packet::PacketHelper::write(log, server_);
 }
 
-std::optional<bool> EntranceColorHandler::is_public_entrance(const world::Tile& tile)
+bool TileRewriteHandler::patch(std::vector<std::byte>& data, const std::size_t offset, const world::Tile& tile) const
+{
+    bool changed{ false };
+
+    if (gates_enabled()) {
+        if (const auto state{ is_public_entrance(tile) }) {
+            changed |= world::paint_tile_record(data, offset, *state);
+        }
+    }
+
+    // Lava has no extra data, so swapping the foreground keeps the record's
+    // length. Lava Rock is solid like lava but never hurts.
+    if (lava_enabled() && offset + 2 <= data.size()) {
+        if (const auto* item{ item::ItemDatabase::instance().get_item(tile.foreground) }; item && item->item_type == item::ItemType::Lava) {
+            data[offset] = static_cast<std::byte>(LAVA_ROCK & 0xff);
+            data[offset + 1] = static_cast<std::byte>(LAVA_ROCK >> 8);
+            changed = true;
+        }
+    }
+
+    return changed;
+}
+
+std::optional<bool> TileRewriteHandler::is_public_entrance(const world::Tile& tile)
 {
     const auto* item{ item::ItemDatabase::instance().get_item(tile.foreground) };
     if (!item || item->item_type != item::ItemType::Gateway) {
@@ -54,9 +88,9 @@ std::optional<bool> EntranceColorHandler::is_public_entrance(const world::Tile& 
     return world::has_flag(tile.flag, world::TileFlag::Public);
 }
 
-void EntranceColorHandler::on_map_data(const event::Event& event)
+void TileRewriteHandler::on_map_data(const event::Event& event)
 {
-    if (!is_enabled()) {
+    if (!gates_enabled() && !lava_enabled()) {
         return;
     }
 
@@ -75,10 +109,8 @@ void EntranceColorHandler::on_map_data(const event::Event& event)
     auto data{ pkt->extra };
     bool changed{ false };
     for (std::size_t i{ 0 }; i < map.get_tiles().size(); ++i) {
-        const auto state{ is_public_entrance(map.get_tiles()[i]) };
-        const auto bytes{ map.get_tile_bytes(i) };
-        if (state && bytes && bytes->second <= data.size()) {
-            changed |= world::paint_tile_record(data, bytes->first, *state);
+        if (const auto bytes{ map.get_tile_bytes(i) }; bytes && bytes->second <= data.size()) {
+            changed |= patch(data, bytes->first, map.get_tiles()[i]);
         }
     }
 
@@ -94,9 +126,9 @@ void EntranceColorHandler::on_map_data(const event::Event& event)
     }
 }
 
-void EntranceColorHandler::on_tile_update(const event::Event& event)
+void TileRewriteHandler::on_tile_update(const event::Event& event)
 {
-    if (!is_enabled()) {
+    if (!gates_enabled() && !lava_enabled()) {
         return;
     }
 
@@ -114,9 +146,8 @@ void EntranceColorHandler::on_tile_update(const event::Event& event)
     utils::ByteStream<> bs{ pkt->extra.data(), pkt->extra.size() };
     std::ignore = tile.serialize(bs, world::World::instance().get_version());
 
-    const auto state{ is_public_entrance(tile) };
     auto data{ pkt->extra };
-    if (!state || !world::paint_tile_record(data, 0, *state)) {
+    if (!patch(data, 0, tile)) {
         return;
     }
 
