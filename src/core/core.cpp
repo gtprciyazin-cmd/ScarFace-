@@ -19,6 +19,7 @@
 #include "../command/commands/wrench_command.hpp"
 #include "../command/commands/proxy_menu_command.hpp"
 #include "../command/commands/nick_command.hpp"
+#include "../command/commands/action_command.hpp"
 #include "../command/commands/spam_command.hpp"
 #include "../command/commands/count_command.hpp"
 #include "../command/commands/collect_key_command.hpp"
@@ -68,6 +69,10 @@ Core::Core()
     mod_alert_handler_ = std::make_unique<handlers::ModAlertHandler>(dispatcher_, *server_, config_);
     spam_handler_ = std::make_unique<handlers::SpamHandler>(dispatcher_, scheduler_, *client_, *server_, config_);
     ping_name_handler_ = std::make_unique<handlers::PingNameHandler>(dispatcher_, scheduler_, *client_, *server_, config_);
+    gem_drop_handler_ = std::make_unique<handlers::GemDropHandler>(dispatcher_, scheduler_, *server_, config_);
+    entrance_color_handler_ = std::make_unique<handlers::EntranceColorHandler>(dispatcher_, *server_, config_);
+    door_id_handler_ = std::make_unique<handlers::DoorIdHandler>(dispatcher_, *server_, config_);
+    dice_handler_ = std::make_unique<handlers::DiceHandler>(dispatcher_, *server_, config_);
     proxy_menu_handler_ = std::make_unique<handlers::ProxyMenuHandler>(dispatcher_, *server_, scheduler_, *quick_wrench_handler_, *roulette_handler_, *mod_alert_handler_, *fun_facts_handler_, *fast_drop_handler_, *auto_collect_handler_, *hotkey_handler_, *pathfind_handler_, *spam_handler_, *ping_name_handler_, *version_handler_);
     command_handler_ = std::make_unique<command::CommandHandler>(config_, dispatcher_, scheduler_, *server_, *client_);
     register_feature_commands();
@@ -136,6 +141,11 @@ void Core::register_feature_commands()
         [this](const bool enabled) { roulette_handler_->set_enabled(enabled); }
     ));
     registry.add(std::make_unique<command::SpamCommand>(*spam_handler_));
+    registry.add(std::make_unique<command::ActionCommand>(
+        "gems",
+        "List the gem piles in this world",
+        [this] { gem_drop_handler_->show_summary(); }
+    ));
     registry.add(std::make_unique<command::NickCommand>(
         [this](const std::string& name) { return ping_name_handler_->rename(name); }
     ));
@@ -201,18 +211,30 @@ void Core::register_menu()
         "Enables Fast Drop Without Additional Dialogs, `2/count [amount]`` For Specific Amount.",
         toggle(*fast_drop_handler_), "menu_fastdrop");
 
-    menu.add_section("Roulette");
+    menu.add_section("Roulette & Games");
     add("wrench", "`2Enable `9Wrench `#Pull",
         "Enables Fast Wrenching. You Can Select Modes In `2/wrench``.",
         toggle(*quick_wrench_handler_), "menu_wrench");
     add("spin", "`9Show Real/Fake Spin",
         "Will Show You `2[REAL]`` and `4[FAKE]`` Roulette Wheel Spins.",
         toggle(*roulette_handler_), "menu_roulette");
+    add("dice", "`9Show Instant Dice Roll",
+        "Will Show What A Dice Block Lands On As Soon As It Is Punched.",
+        toggle(*dice_handler_));
 
     menu.add_section("Visuals");
     add("ping", "`9Show Ping Latency",
         "Will Display Your Ping Latency Next To Your Name.",
         toggle(*ping_name_handler_), "menu_ping");
+    add("gems", "`9Show Instant Dropped `2Gem`` `9Drop Count",
+        "Will Display The Gem Count On A Tile Instantly After Spawning. (`2/gems`` To Display Again)",
+        toggle(*gem_drop_handler_));
+    add("gates", "`9Show Public Entrances/Gates",
+        "Will Recolor All Entrances/Gates: `4Red`` = `4Closed``, `2Green`` = `2Public``.",
+        toggle(*entrance_color_handler_));
+    add("doorid", "`9Reveal Door ID Whenever Possible",
+        "When You Enter A Door That Redirects To Another World - DoorID Will Appear In Console (If Exists).",
+        toggle(*door_id_handler_));
     add("funfacts", "`9Show Fun Facts",
         "Will Regularly Show Fun Facts.",
         toggle(*fun_facts_handler_));

@@ -112,6 +112,14 @@ inline void register_packet_events() {
         make_event_builder<game::OnRemove, PacketId::OnRemove>()
     );
     registry.register_event(
+        PacketId::TileApplyDamage,
+        make_event_builder<game::TileApplyDamage, PacketId::TileApplyDamage>()
+    );
+    registry.register_event(
+        PacketId::TileActivateRequest,
+        make_event_builder<game::TileActivateRequest, PacketId::TileActivateRequest>()
+    );
+    registry.register_event(
         PacketId::OnNameChanged,
         make_event_builder<game::OnNameChanged, PacketId::OnNameChanged>()
     );

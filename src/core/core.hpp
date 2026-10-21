@@ -20,6 +20,10 @@
 #include "handlers/pathfind_handler.hpp"
 #include "handlers/fun_facts_handler.hpp"
 #include "handlers/version_handler.hpp"
+#include "handlers/dice_handler.hpp"
+#include "handlers/door_id_handler.hpp"
+#include "handlers/entrance_color_handler.hpp"
+#include "handlers/gem_drop_handler.hpp"
 #include "handlers/ping_name_handler.hpp"
 #include "handlers/proxy_menu_handler.hpp"
 #include "handlers/spam_handler.hpp"
@@ -81,6 +85,10 @@ private:
     std::unique_ptr<handlers::ModAlertHandler> mod_alert_handler_;
     std::unique_ptr<handlers::SpamHandler> spam_handler_;
     std::unique_ptr<handlers::PingNameHandler> ping_name_handler_;
+    std::unique_ptr<handlers::GemDropHandler> gem_drop_handler_;
+    std::unique_ptr<handlers::EntranceColorHandler> entrance_color_handler_;
+    std::unique_ptr<handlers::DoorIdHandler> door_id_handler_;
+    std::unique_ptr<handlers::DiceHandler> dice_handler_;
     std::unique_ptr<handlers::ProxyMenuHandler> proxy_menu_handler_;
     std::unique_ptr<command::CommandHandler> command_handler_;
 

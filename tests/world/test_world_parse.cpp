@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include "item/item_database.hpp"
+#include "world/object.hpp"
 #include "world/world.hpp"
 
 using namespace world;
@@ -187,6 +188,20 @@ TEST(WorldParseTest, StaysInSyncOnRealWorldTiles)
     EXPECT_TRUE(world.get_tile_map().is_complete());
     EXPECT_TRUE(world.objects_known());
 
+    // Byte ranges of the tiles, used to patch them in place: they follow each
+    // other, start after the header and match the record sizes above.
+    const auto& map{ world.get_tile_map() };
+    const auto first{ map.get_tile_bytes(0) };
+    ASSERT_TRUE(first.has_value());
+    EXPECT_EQ(first->first, 2u + 4u + 2u + 9u + 4u + 4u + 4u + 5u);
+    EXPECT_EQ(first->second - first->first, 26u);
+    for (std::size_t i{ 1 }; i < tiles.size(); ++i) {
+        ASSERT_TRUE(map.get_tile_bytes(i).has_value());
+        EXPECT_EQ(map.get_tile_bytes(i)->first, map.get_tile_bytes(i - 1)->second);
+    }
+    EXPECT_EQ(map.get_tile_bytes(9)->second - map.get_tile_bytes(9)->first, 8u);
+    EXPECT_FALSE(map.get_tile_bytes(10).has_value());
+
     const auto& objects{ world.get_object_map().get_objects() };
     ASSERT_EQ(objects.size(), 1u);
     EXPECT_EQ(objects[0].item_id, 242);
@@ -261,4 +276,35 @@ TEST(WorldParseTest, ReadsCborTrailerAndNewExtraTypes)
     ASSERT_EQ(tiles.size(), 4u);
     EXPECT_EQ(tiles[3].foreground, 8);
     EXPECT_EQ(world.get_object_map().get_drop_id(), 7u);
+}
+
+TEST(WorldParseTest, PaintingAnEntranceOnlyChangesItsPaintBits)
+{
+    // Portcullis, locked + public, already painted blue.
+    std::vector<std::byte> data{};
+    utils::ByteStream<> bs{};
+    write_plain_tile(bs, 2, 0);
+    bs.write<std::uint16_t>(60);
+    bs.write<std::uint16_t>(14);
+    bs.write<std::uint16_t>(0);
+    bs.write<std::uint16_t>(0x8000 | 0x0080 | 0x0002);
+    data = bs.get_data();
+
+    EXPECT_TRUE(paint_tile_record(data, 8, true));
+    EXPECT_EQ(static_cast<std::uint8_t>(data[8 + 6]), 0x82);
+    EXPECT_EQ(static_cast<std::uint8_t>(data[8 + 7]), 0x40); // green, blue gone
+    EXPECT_FALSE(paint_tile_record(data, 8, true));
+
+    EXPECT_TRUE(paint_tile_record(data, 8, false));
+    EXPECT_EQ(static_cast<std::uint8_t>(data[8 + 7]), 0x20); // red
+    EXPECT_EQ(static_cast<std::uint8_t>(data[0]), 2u); // the first tile is untouched
+    EXPECT_FALSE(paint_tile_record(data, data.size() - 4, true));
+}
+
+TEST(WorldParseTest, DropsMapToTheTileTheyLieOn)
+{
+    // Server drops: tile * 32 + 8 plus up to -7..6 / -11..10 pixels.
+    EXPECT_EQ(drop_tile(10 * 32 + 8 - 7, 5 * 32 + 8 - 11), std::pair(10, 5));
+    EXPECT_EQ(drop_tile(10 * 32 + 8 + 6, 5 * 32 + 8 + 10), std::pair(10, 5));
+    EXPECT_EQ(drop_tile(0.0f, 0.0f), std::pair(0, 0));
 }

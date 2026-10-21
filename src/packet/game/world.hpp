@@ -185,6 +185,9 @@ struct SendMapData : GamePacket<PacketId::SendMapData, PACKET_SEND_MAP_DATA> {
             return false;
         }
 
+        // Keep the header: in map data tileX is the server clock, in a tile
+        // update tileX/tileY say which tile it is.
+        game_packet = game->packet;
         extra = game->extra;
         return true;
     }
@@ -212,6 +215,9 @@ struct SendTileUpdateData : GamePacket<PacketId::SendTileUpdateData, PACKET_SEND
             return false;
         }
 
+        // Keep the header: in map data tileX is the server clock, in a tile
+        // update tileX/tileY say which tile it is.
+        game_packet = game->packet;
         extra = game->extra;
         return true;
     }
@@ -228,6 +234,60 @@ struct SendTileUpdateData : GamePacket<PacketId::SendTileUpdateData, PACKET_SEND
         game_payload.extra = extra;
 
         return game_payload;
+    }
+};
+
+// Server -> client the moment a block is punched. For dice blocks the third
+// header byte already holds the rolled face (0-based) while the client is
+// still animating the roll.
+struct TileApplyDamage : GamePacket<PacketId::TileApplyDamage, PACKET_TILE_APPLY_DAMAGE> {
+    int32_t int_x{ 0 };
+    int32_t int_y{ 0 };
+    int32_t puncher_net_id{ -1 };
+    std::uint8_t value{ 0 };
+
+    bool read(const Payload& payload) override
+    {
+        const auto game{ get_payload_if<GamePayload>(payload) };
+        if (!game) {
+            return false;
+        }
+
+        game_packet = game->packet;
+        int_x = game_packet.int_x;
+        int_y = game_packet.int_y;
+        puncher_net_id = static_cast<int32_t>(game_packet.net_id);
+        value = game_packet.pad[2];
+        return true;
+    }
+
+    Payload write() override
+    {
+        return GamePayload{ game_packet, extra };
+    }
+};
+
+// Client -> server when the player walks into or punches a door, portal...
+struct TileActivateRequest : GamePacket<PacketId::TileActivateRequest, PACKET_TILE_ACTIVATE_REQUEST> {
+    int32_t int_x{ 0 };
+    int32_t int_y{ 0 };
+
+    bool read(const Payload& payload) override
+    {
+        const auto game{ get_payload_if<GamePayload>(payload) };
+        if (!game) {
+            return false;
+        }
+
+        game_packet = game->packet;
+        int_x = game_packet.int_x;
+        int_y = game_packet.int_y;
+        return true;
+    }
+
+    Payload write() override
+    {
+        return GamePayload{ game_packet, extra };
     }
 };
 

@@ -1,5 +1,7 @@
 #pragma once
+#include <cstddef>
 #include <string>
+#include <vector>
 
 #include <fmt/format.h>
 #include "tile_extra.hpp"
@@ -43,6 +45,33 @@ enum class TileFlag : std::uint16_t {
 
 [[nodiscard]] inline bool has_flag(TileFlag flags, TileFlag flag) {
     return (flags & flag) == flag;
+}
+
+// Rewrites the paint bits in the flags of the tile record at `offset` of
+// raw world data: green or red, as the client tints painted blocks. Returns
+// false when the record is out of range or already painted that way.
+inline bool paint_tile_record(std::vector<std::byte>& data, const std::size_t offset, const bool green)
+{
+    constexpr std::size_t FLAGS_OFFSET{ 6 }; // u16 foreground, background, parent, then flags
+    constexpr std::uint16_t PAINT_BITS{
+        static_cast<std::uint16_t>(TileFlag::Red) | static_cast<std::uint16_t>(TileFlag::Green) | static_cast<std::uint16_t>(TileFlag::Blue)
+    };
+    if (offset + FLAGS_OFFSET + 2 > data.size()) {
+        return false;
+    }
+
+    const auto flags{ static_cast<std::uint16_t>(
+        static_cast<std::uint16_t>(data[offset + FLAGS_OFFSET]) | (static_cast<std::uint16_t>(data[offset + FLAGS_OFFSET + 1]) << 8)
+    ) };
+    const auto colour{ static_cast<std::uint16_t>(green ? TileFlag::Green : TileFlag::Red) };
+    const auto painted{ static_cast<std::uint16_t>((flags & ~PAINT_BITS) | colour) };
+    if (painted == flags) {
+        return false;
+    }
+
+    data[offset + FLAGS_OFFSET] = static_cast<std::byte>(painted & 0xff);
+    data[offset + FLAGS_OFFSET + 1] = static_cast<std::byte>(painted >> 8);
+    return true;
 }
 
 struct Tile {

@@ -45,6 +45,10 @@ public:
         std::string spam_text{};
         int spam_interval_s{ 10 };
         bool ping_in_name{ true };
+        bool gem_count{ false };
+        bool public_gates{ false };
+        bool door_id{ true };
+        bool instant_dice{ true };
     };
 
     // Discord Rich Presence. The application id picks the Discord app whose

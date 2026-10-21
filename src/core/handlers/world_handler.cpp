@@ -171,15 +171,27 @@ void WorldHandler::setup_send_tile_update_data_handler()
                 return;
             }
 
-            const auto& world{ world::World::instance() };
+            auto& world{ world::World::instance() };
             world::Tile tile{};
 
             utils::ByteStream<> bs{ pkt->extra.data(), pkt->extra.size() };
-            std::ignore = tile.serialize(bs, world.get_version());
+            if (!tile.serialize(bs, world.get_version())) {
+                return;
+            }
 
-            // Update tile in map if coordinates are available in game_packet
-            // Note: SendTileUpdateData typically doesn't include coords in the packet itself
-            // The coordinates would need to come from parsing the extended data
+            // The tile's coordinates are in the header (tileX/tileY).
+            auto& map{ world.get_tile_map() };
+            const auto& size{ map.get_size() };
+            const auto x{ pkt->game_packet.int_x };
+            const auto y{ pkt->game_packet.int_y };
+            if (x < 0 || y < 0 || x >= size.x || y >= size.y) {
+                return;
+            }
+
+            const auto index{ static_cast<std::size_t>(x) + static_cast<std::size_t>(y) * static_cast<std::size_t>(size.x) };
+            if (index < map.get_tiles().size()) {
+                map.get_tiles()[index] = std::move(tile);
+            }
         })
     );
 }

@@ -88,6 +88,8 @@ public:
     // collect would ask the server for objects that do not exist).
     [[nodiscard]] bool objects_known() const { return objects_known_; }
 
+    [[nodiscard]] const std::string& get_name() const { return name_; }
+
     [[nodiscard]] uint16_t get_version() const
     {
         return version_;

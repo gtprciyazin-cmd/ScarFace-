@@ -1,9 +1,18 @@
 #pragma once
+#include <cmath>
+#include <utility>
 #include <glm/glm.hpp>
 
 #include "../utils/byte_stream.hpp"
 
 namespace world {
+// Tile a dropped object at this pixel position lies on. Drops land a few
+// pixels around tile * 32 + 8, sometimes just over the edge of the tile above.
+[[nodiscard]] inline std::pair<int, int> drop_tile(const float pos_x, const float pos_y)
+{
+    return { static_cast<int>(std::floor((pos_x + 8.0f) / 32.0f)), static_cast<int>(std::floor((pos_y + 8.0f) / 32.0f)) };
+}
+
 struct Object {
     std::uint16_t item_id;
     glm::vec2 pos;
