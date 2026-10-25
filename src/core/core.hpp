@@ -2,6 +2,7 @@
 #include <atomic>
 
 #include "config.hpp"
+#include "legit_manager.hpp"
 #include "scheduler.hpp"
 #include "web_server.hpp"
 #include "handlers/auto_collect_handler.hpp"
@@ -77,6 +78,7 @@ private:
     std::unique_ptr<handlers::VersionHandler> version_handler_;
     std::unique_ptr<handlers::WorldHandler> world_handler_;
     // Declared before command_handler_, whose commands reference them.
+    std::unique_ptr<LegitManager> legit_manager_;
     std::unique_ptr<handlers::DialogInterceptor> dialog_interceptor_;
     std::unique_ptr<handlers::InventoryHandler> inventory_handler_;
     std::unique_ptr<handlers::AutoCollectHandler> auto_collect_handler_;

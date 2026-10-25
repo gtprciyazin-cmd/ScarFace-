@@ -1,5 +1,6 @@
 #pragma once
 #include "../config.hpp"
+#include "../legit_manager.hpp"
 #include "../../event/event.hpp"
 #include "../../network/client.hpp"
 
@@ -13,7 +14,7 @@ namespace core::handlers {
 // /wd) is handled by that command's expectation and never reaches here.
 class FastDropHandler {
 public:
-    FastDropHandler(event::Dispatcher& dispatcher, network::Client& client, Config& config);
+    FastDropHandler(event::Dispatcher& dispatcher, network::Client& client, LegitManager& legit, Config& config);
 
     FastDropHandler(const FastDropHandler&) = delete;
     FastDropHandler& operator=(const FastDropHandler&) = delete;
@@ -32,6 +33,7 @@ private:
 
     event::Dispatcher& dispatcher_;
     network::Client& client_;
+    LegitManager& legit_;
     Config& config_;
 
     event::ScopedHandle handle_;

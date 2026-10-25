@@ -32,9 +32,10 @@ namespace {
     }
 }
 
-FastDropHandler::FastDropHandler(event::Dispatcher& dispatcher, network::Client& client, Config& config)
+FastDropHandler::FastDropHandler(event::Dispatcher& dispatcher, network::Client& client, LegitManager& legit, Config& config)
     : dispatcher_{ dispatcher }
     , client_{ client }
+    , legit_{ legit }
     , config_{ config }
 {
     handle_ = event::ScopedHandle{
@@ -93,13 +94,16 @@ void FastDropHandler::on_dialog(const event::Event& event)
     const int wanted{ get_amount() };
     const int amount{ wanted > 0 ? std::min(wanted, owned) : owned };
 
-    const auto reply{ packet::game::make_dialog_return(dialog, { { "count", std::to_string(amount) } }) };
-    if (!client_.write(packet::message::make_raw_text(packet::NET_MESSAGE_GENERIC_TEXT, reply))) {
+    if (!client_.is_connected()) {
         return;
     }
 
-    // Answered on the player's behalf: hide the dialog.
+    // Answered on the player's behalf: hide the dialog now, answer on our turn.
     evt->cancel();
-    spdlog::info("Fast drop: auto-dropped {} of item in drop_item dialog", amount);
+    legit_.run([this, reply = packet::game::make_dialog_return(dialog, { { "count", std::to_string(amount) } }), amount] {
+        if (client_.write(packet::message::make_raw_text(packet::NET_MESSAGE_GENERIC_TEXT, reply))) {
+            spdlog::info("Fast drop: auto-dropped {} of item in drop_item dialog", amount);
+        }
+    });
 }
 }

@@ -31,9 +31,10 @@ namespace {
     }
 }
 
-FastTrashHandler::FastTrashHandler(event::Dispatcher& dispatcher, network::Client& client, network::Server& server, Config& config)
+FastTrashHandler::FastTrashHandler(event::Dispatcher& dispatcher, network::Client& client, network::Server& server, LegitManager& legit, Config& config)
     : client_{ client }
     , server_{ server }
+    , legit_{ legit }
     , config_{ config }
 {
     handle_ = event::ScopedHandle{
@@ -88,17 +89,23 @@ void FastTrashHandler::on_dialog(const event::Event& event)
         return;
     }
 
-    const auto reply{ packet::game::make_dialog_return(dialog, { { "count", std::to_string(owned) } }) };
-    if (!client_.write(packet::message::make_raw_text(packet::NET_MESSAGE_GENERIC_TEXT, reply))) {
+    if (!client_.is_connected()) {
         return;
     }
 
+    // Hide the dialog now, answer on our turn.
     evt->cancel();
-    spdlog::info("Fast trash: trashed {} of item {}", owned, item_id);
+    legit_.run([this, reply = packet::game::make_dialog_return(dialog, { { "count", std::to_string(owned) } }), owned, item_id] {
+        if (!client_.write(packet::message::make_raw_text(packet::NET_MESSAGE_GENERIC_TEXT, reply))) {
+            return;
+        }
 
-    const auto* item{ item::ItemDatabase::instance().get_item(static_cast<std::uint32_t>(item_id)) };
-    packet::message::Log log{};
-    log.msg = fmt::format("`9[Trash]`` `w{}`` x{}", item ? item->item_name : std::to_string(item_id), owned);
-    std::ignore = packet::PacketHelper::write(log, server_);
+        spdlog::info("Fast trash: trashed {} of item {}", owned, item_id);
+
+        const auto* item{ item::ItemDatabase::instance().get_item(static_cast<std::uint32_t>(item_id)) };
+        packet::message::Log log{};
+        log.msg = fmt::format("`9[Trash]`` `w{}`` x{}", item ? item->item_name : std::to_string(item_id), owned);
+        std::ignore = packet::PacketHelper::write(log, server_);
+    });
 }
 }

@@ -9,6 +9,7 @@
 
 #include "auto_collect_handler.hpp"
 #include "dialog_interceptor.hpp"
+#include "../legit_manager.hpp"
 #include "../../network/client.hpp"
 #include "../../network/server.hpp"
 #include "../../player/inventory.hpp"
@@ -34,7 +35,8 @@ public:
         network::Client& client,
         network::Server& server,
         DialogInterceptor& dialogs,
-        AutoCollectHandler& auto_collect
+        AutoCollectHandler& auto_collect,
+        LegitManager& legit
     );
 
     DropHandler(const DropHandler&) = delete;
@@ -59,6 +61,8 @@ private:
     // Pause between the lock types of a drop-all, so the drops do not race.
     static constexpr auto DROP_ALL_STEP_DELAY{ std::chrono::milliseconds{ 400 } };
 
+    // Shatters `count` x `source_item`, one per turn, then drops.
+    void shatter(std::uint16_t source_item, int count, std::uint16_t item_id, int amount, const std::string& item_name);
     void start_drop(std::uint16_t item_id, int amount, const std::string& item_name);
     void drop_all_step(std::size_t index, std::shared_ptr<std::vector<std::string>> dropped);
     bool on_drop_dialog(const packet::game::DialogInfo& dialog, std::uint16_t item_id, int amount, const std::string& item_name);
@@ -69,5 +73,6 @@ private:
     network::Server& server_;
     DialogInterceptor& dialogs_;
     AutoCollectHandler& auto_collect_;
+    LegitManager& legit_;
 };
 }

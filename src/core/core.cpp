@@ -57,15 +57,16 @@ Core::Core()
     forwarding_handler_ = std::make_unique<handlers::ForwardingHandler>(dispatcher_, *client_, *server_);
     version_handler_ = std::make_unique<handlers::VersionHandler>(dispatcher_, config_);
     world_handler_ = std::make_unique<handlers::WorldHandler>(dispatcher_);
+    legit_manager_ = std::make_unique<LegitManager>(scheduler_, config_);
     dialog_interceptor_ = std::make_unique<handlers::DialogInterceptor>(dispatcher_, scheduler_);
     inventory_handler_ = std::make_unique<handlers::InventoryHandler>(dispatcher_);
-    auto_collect_handler_ = std::make_unique<handlers::AutoCollectHandler>(dispatcher_, *client_, scheduler_, config_);
+    auto_collect_handler_ = std::make_unique<handlers::AutoCollectHandler>(dispatcher_, *client_, scheduler_, *legit_manager_, config_);
     hotkey_handler_ = std::make_unique<handlers::HotkeyHandler>(scheduler_, *auto_collect_handler_, *server_, config_);
     pathfind_handler_ = std::make_unique<handlers::PathfindHandler>(dispatcher_, *client_, *server_, config_);
-    drop_handler_ = std::make_unique<handlers::DropHandler>(*client_, *server_, *dialog_interceptor_, *auto_collect_handler_);
-    world_manage_handler_ = std::make_unique<handlers::WorldManageHandler>(*client_, *server_, *dialog_interceptor_);
+    drop_handler_ = std::make_unique<handlers::DropHandler>(*client_, *server_, *dialog_interceptor_, *auto_collect_handler_, *legit_manager_);
+    world_manage_handler_ = std::make_unique<handlers::WorldManageHandler>(*client_, *server_, *dialog_interceptor_, *legit_manager_);
     quick_wrench_handler_ = std::make_unique<handlers::QuickWrenchHandler>(dispatcher_, *server_, *world_manage_handler_, config_);
-    fast_drop_handler_ = std::make_unique<handlers::FastDropHandler>(dispatcher_, *client_, config_);
+    fast_drop_handler_ = std::make_unique<handlers::FastDropHandler>(dispatcher_, *client_, *legit_manager_, config_);
     fun_facts_handler_ = std::make_unique<handlers::FunFactsHandler>(scheduler_, *server_, config_);
     roulette_handler_ = std::make_unique<handlers::RouletteHandler>(dispatcher_, *server_, config_);
     mod_alert_handler_ = std::make_unique<handlers::ModAlertHandler>(dispatcher_, *server_, config_);
@@ -78,7 +79,7 @@ Core::Core()
     tile_rewrite_handler_ = std::make_unique<handlers::TileRewriteHandler>(dispatcher_, *server_, config_);
     door_id_handler_ = std::make_unique<handlers::DoorIdHandler>(dispatcher_, *server_, config_);
     dice_handler_ = std::make_unique<handlers::DiceHandler>(dispatcher_, *server_, config_);
-    fast_trash_handler_ = std::make_unique<handlers::FastTrashHandler>(dispatcher_, *client_, *server_, config_);
+    fast_trash_handler_ = std::make_unique<handlers::FastTrashHandler>(dispatcher_, *client_, *server_, *legit_manager_, config_);
     auto_access_handler_ = std::make_unique<handlers::AutoAccessHandler>(dispatcher_, *client_, *server_, *dialog_interceptor_, config_);
     chat_filter_handler_ = std::make_unique<handlers::ChatFilterHandler>(dispatcher_, *server_, config_);
     consumable_autoban_handler_ = std::make_unique<handlers::ConsumableAutobanHandler>(dispatcher_, *server_, *world_manage_handler_, config_);
@@ -180,6 +181,13 @@ void Core::register_feature_commands()
         [this](const bool enabled) { name_tag_handler_->set_enabled(enabled); }
     ));
     registry.add(std::make_unique<command::ToggleCommand>(
+        "legit",
+        "Space out the proxy's own actions like a person",
+        "Legit mode",
+        [this] { return legit_manager_->is_enabled(); },
+        [this](const bool enabled) { legit_manager_->set_enabled(enabled); }
+    ));
+    registry.add(std::make_unique<command::ToggleCommand>(
         "modalert",
         "Warn when a moderator is in the world",
         "Mod alert",
@@ -201,6 +209,7 @@ void Core::register_feature_commands()
     registry.set_menu("pathfind", menu(&handlers::ProxyMenuHandler::open_pathfind));
     registry.set_menu("spam", menu(&handlers::ProxyMenuHandler::open_spam));
     registry.set_menu("ping", menu(&handlers::ProxyMenuHandler::open_ping));
+    registry.set_menu("legit", [this] { std::ignore = proxy_menu_handler_->open_settings("menu_legit"); });
 }
 
 void Core::register_menu()
@@ -314,7 +323,18 @@ void Core::register_menu()
         [this](const utils::TextParse& fields) { consumable_autoban_handler_->apply_settings(fields); },
     });
 
+    menu.add_menu("menu_legit", "scarface_legit", handlers::ProxyMenuHandler::CustomMenu{
+        242, // World Lock
+        "Legit Mode",
+        "Human-paced timing for everything the proxy does for you.",
+        [this] { return legit_manager_->settings_body(); },
+        [this](const utils::TextParse& fields) { legit_manager_->apply_settings(fields); },
+    });
+
     menu.add_section("Safety");
+    add("legit", "`2Enable `9Legit Mode",
+        "Spaces Out What The Proxy Does For You (`2/wd /dd /bd``, Auto Collect, Fast Drop/Trash, Pull/Kick/Ban) With Random Human-Like Delays. Your Own Moves Are Never Slowed.",
+        toggle(*legit_manager_), "menu_legit");
     add("modalert", "`2Enable `9Auto Mod Detect",
         "Warns You When A Moderator Or An Invisible Player Is In The World.",
         toggle(*mod_alert_handler_));

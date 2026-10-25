@@ -12,6 +12,9 @@ find_package(ZLIB REQUIRED)
 add_executable(GTProxy_tests
     core/test_scheduler.cpp
     ${CMAKE_SOURCE_DIR}/src/core/scheduler.cpp
+    core/test_legit_manager.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/legit_manager.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/config.cpp
     license/test_license.cpp
     ${CMAKE_SOURCE_DIR}/src/license/license.cpp
     packet/test_dialog.cpp

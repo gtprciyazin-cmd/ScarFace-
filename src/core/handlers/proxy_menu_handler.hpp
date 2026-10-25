@@ -85,6 +85,8 @@ public:
 
     // Shows the main options dialog to the player.
     void open() const;
+    // Opens the menu behind a settings button; false for an unknown button.
+    bool open_settings(const std::string& button) const;
 
     // Per-feature menus.
     void open_auto_collect() const;
@@ -105,8 +107,6 @@ private:
     };
 
     void on_dialog_return(const event::Event& event);
-    // Opens the menu behind a settings button; false for an unknown button.
-    bool open_settings(const std::string& button) const;
     [[nodiscard]] std::string build_dialog() const;
     void send_dialog(const std::string& dialog) const;
     void send_log(const std::string& msg) const;

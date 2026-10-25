@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "../config.hpp"
+#include "../legit_manager.hpp"
 #include "../scheduler.hpp"
 #include "../../event/event.hpp"
 #include "../../network/client.hpp"
@@ -25,7 +26,7 @@ public:
     static constexpr int MIN_DELAY_MS{ 0 };
     static constexpr int MAX_DELAY_MS{ 5000 };
 
-    AutoCollectHandler(event::Dispatcher& dispatcher, network::Client& client, std::shared_ptr<Scheduler> scheduler, Config& config);
+    AutoCollectHandler(event::Dispatcher& dispatcher, network::Client& client, std::shared_ptr<Scheduler> scheduler, LegitManager& legit, Config& config);
 
     AutoCollectHandler(const AutoCollectHandler&) = delete;
     AutoCollectHandler& operator=(const AutoCollectHandler&) = delete;
@@ -58,6 +59,8 @@ private:
     static constexpr auto RETRY_DELAY{ std::chrono::milliseconds{ 1000 } };
     static constexpr int MAX_ATTEMPTS{ 3 };
     static constexpr std::size_t MAX_REQUESTS_PER_PASS{ 4 };
+    // Legit mode busy with no turn time known yet (actions queued): look again this soon.
+    static constexpr auto LEGIT_RETRY{ std::chrono::milliseconds{ 50 } };
 
     struct Attempt {
         int count{ 0 };
@@ -75,6 +78,7 @@ private:
     event::Dispatcher& dispatcher_;
     network::Client& client_;
     std::shared_ptr<Scheduler> scheduler_;
+    LegitManager& legit_;
     Config& config_;
 
     bool enabled_{ false };

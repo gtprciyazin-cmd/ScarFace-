@@ -5,6 +5,7 @@
 #include <string_view>
 
 #include "dialog_interceptor.hpp"
+#include "../legit_manager.hpp"
 #include "../../network/client.hpp"
 #include "../../network/server.hpp"
 
@@ -26,7 +27,7 @@ public:
         NotInWorld,
     };
 
-    WorldManageHandler(network::Client& client, network::Server& server, DialogInterceptor& dialogs);
+    WorldManageHandler(network::Client& client, network::Server& server, DialogInterceptor& dialogs, LegitManager& legit);
 
     WorldManageHandler(const WorldManageHandler&) = delete;
     WorldManageHandler& operator=(const WorldManageHandler&) = delete;
@@ -50,5 +51,6 @@ private:
     network::Client& client_;
     network::Server& server_;
     DialogInterceptor& dialogs_;
+    LegitManager& legit_;
 };
 }

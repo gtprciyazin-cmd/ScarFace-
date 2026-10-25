@@ -30,12 +30,14 @@ DropHandler::DropHandler(
     network::Client& client,
     network::Server& server,
     DialogInterceptor& dialogs,
-    AutoCollectHandler& auto_collect
+    AutoCollectHandler& auto_collect,
+    LegitManager& legit
 )
     : client_{ client }
     , server_{ server }
     , dialogs_{ dialogs }
     , auto_collect_{ auto_collect }
+    , legit_{ legit }
 {
 
 }
@@ -57,16 +59,8 @@ DropHandler::Result DropHandler::request_drop(const std::uint16_t item_id, const
     auto& inventory{ player::Inventory::instance() };
     const auto plan{ item::locks::plan_conversion(item_id, amount, inventory) };
     if (!plan) {
-        start_drop(item_id, amount, item_name);
+        legit_.run([this, item_id, amount, item_name] { start_drop(item_id, amount, item_name); });
         return Result::Sent;
-    }
-
-    for (int i{ 0 }; i < plan->count; ++i) {
-        packet::game::ItemActivateRequest activate{};
-        activate.item_id = plan->source_item;
-        if (!packet::PacketHelper::write(activate, client_)) {
-            return Result::NotConnected;
-        }
     }
 
     // Assume it worked; the drop dialog reports the real count and corrects it.
@@ -74,8 +68,35 @@ DropHandler::Result DropHandler::request_drop(const std::uint16_t item_id, const
     inventory.add(item_id, plan->count * item::locks::TIER_RATIO);
 
     spdlog::info("Drop: shattering {} x item {} before dropping {} x item {}", plan->count, plan->source_item, amount, item_id);
-    dialogs_.run_later(CONVERSION_DELAY, [this, item_id, amount, item_name] { start_drop(item_id, amount, item_name); });
+    shatter(plan->source_item, plan->count, item_id, amount, item_name);
     return Result::Converting;
+}
+
+void DropHandler::shatter(
+    const std::uint16_t source_item,
+    const int count,
+    const std::uint16_t item_id,
+    const int amount,
+    const std::string& item_name
+) {
+    legit_.run([this, source_item, count, item_id, amount, item_name] {
+        packet::game::ItemActivateRequest activate{};
+        activate.item_id = source_item;
+        if (!packet::PacketHelper::write(activate, client_)) {
+            send_log(fmt::format("`4Drop failed: ``lost connection while dropping {}", item_name));
+            return;
+        }
+
+        if (count > 1) {
+            shatter(source_item, count - 1, item_id, amount, item_name);
+            return;
+        }
+
+        // Time for the server to apply the last one before asking to drop.
+        dialogs_.run_later(CONVERSION_DELAY, [this, item_id, amount, item_name] {
+            legit_.run([this, item_id, amount, item_name] { start_drop(item_id, amount, item_name); });
+        });
+    });
 }
 
 void DropHandler::start_drop(const std::uint16_t item_id, const int amount, const std::string& item_name)
@@ -126,14 +147,16 @@ bool DropHandler::on_drop_dialog(
 
     auto_collect_.ignore_drops_of(item_id, AUTO_COLLECT_IGNORE_WINDOW);
 
-    const auto reply{ packet::game::make_dialog_return(dialog, { { "count", std::to_string(amount) } }) };
-    if (!send_text(reply)) {
-        send_log(fmt::format("`4Drop failed: ``lost connection while dropping {}", item_name));
-        return true;
-    }
+    // The dialog is taken (hidden) now; the answer goes on its turn.
+    legit_.run([this, reply = packet::game::make_dialog_return(dialog, { { "count", std::to_string(amount) } }), item_id, amount, item_name] {
+        if (!send_text(reply)) {
+            send_log(fmt::format("`4Drop failed: ``lost connection while dropping {}", item_name));
+            return;
+        }
 
-    inventory.add(item_id, -amount);
-    spdlog::info("Drop: answered drop dialog for item {} with count {}", item_id, amount);
+        player::Inventory::instance().add(item_id, -amount);
+        spdlog::info("Drop: answered drop dialog for item {} with count {}", item_id, amount);
+    });
     return true;
 }
 
@@ -190,45 +213,50 @@ void DropHandler::drop_all_step(const std::size_t index, std::shared_ptr<std::ve
         return;
     }
 
-    if (!send_text(fmt::format("action|drop\n|itemID|{}", item_id))) {
-        send_log(fmt::format("`4Drop failed: ``lost connection while dropping {}", name));
-        return;
-    }
+    legit_.run([this, item_id, name, dropped, next] {
+        if (!send_text(fmt::format("action|drop\n|itemID|{}", item_id))) {
+            send_log(fmt::format("`4Drop failed: ``lost connection while dropping {}", name));
+            return;
+        }
 
-    dialogs_.expect(
-        "drop_item",
-        [this, item_id, name, dropped, next](const packet::game::DialogInfo& dialog) {
-            const auto dialog_item{ dialog.get_embed_data("itemID") };
-            if (!dialog_item || parse_number<std::uint16_t>(*dialog_item) != item_id) {
-                return false;
-            }
+        dialogs_.expect(
+            "drop_item",
+            [this, item_id, name, dropped, next](const packet::game::DialogInfo& dialog) {
+                const auto dialog_item{ dialog.get_embed_data("itemID") };
+                if (!dialog_item || parse_number<std::uint16_t>(*dialog_item) != item_id) {
+                    return false;
+                }
 
-            // The amount box defaults to everything the player holds.
-            int owned{ 0 };
-            if (const auto input{ dialog.get_text_input("count") }) {
-                owned = parse_number<int>(*input).value_or(0);
-            }
+                // The amount box defaults to everything the player holds.
+                int owned{ 0 };
+                if (const auto input{ dialog.get_text_input("count") }) {
+                    owned = parse_number<int>(*input).value_or(0);
+                }
 
-            if (owned > 0) {
-                auto_collect_.ignore_drops_of(item_id, AUTO_COLLECT_IGNORE_WINDOW);
-                const auto reply{ packet::game::make_dialog_return(dialog, { { "count", std::to_string(owned) } }) };
-                if (!send_text(reply)) {
-                    send_log(fmt::format("`4Drop failed: ``lost connection while dropping {}", name));
+                if (owned <= 0) {
+                    next();
                     return true;
                 }
 
-                player::Inventory::instance().set(item_id, 0);
-                dropped->push_back(fmt::format("`w{}`` {}", owned, name));
-                spdlog::info("Drop all: dropped {} x item {}", owned, item_id);
-            }
+                auto_collect_.ignore_drops_of(item_id, AUTO_COLLECT_IGNORE_WINDOW);
+                legit_.run([this, reply = packet::game::make_dialog_return(dialog, { { "count", std::to_string(owned) } }), item_id, name, owned, dropped, next] {
+                    if (!send_text(reply)) {
+                        send_log(fmt::format("`4Drop failed: ``lost connection while dropping {}", name));
+                        return;
+                    }
 
-            next();
-            return true;
-        },
-        DIALOG_TIMEOUT,
-        // No dialog: the player has none of this lock.
-        next
-    );
+                    player::Inventory::instance().set(item_id, 0);
+                    dropped->push_back(fmt::format("`w{}`` {}", owned, name));
+                    spdlog::info("Drop all: dropped {} x item {}", owned, item_id);
+                    next();
+                });
+                return true;
+            },
+            DIALOG_TIMEOUT,
+            // No dialog: the player has none of this lock.
+            next
+        );
+    });
 }
 
 bool DropHandler::send_text(const std::string_view text) const

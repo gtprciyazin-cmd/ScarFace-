@@ -10,10 +10,11 @@
 #include "../../world/world.hpp"
 
 namespace core::handlers {
-WorldManageHandler::WorldManageHandler(network::Client& client, network::Server& server, DialogInterceptor& dialogs)
+WorldManageHandler::WorldManageHandler(network::Client& client, network::Server& server, DialogInterceptor& dialogs, LegitManager& legit)
     : client_{ client }
     , server_{ server }
     , dialogs_{ dialogs }
+    , legit_{ legit }
 {
 
 }
@@ -50,22 +51,25 @@ WorldManageHandler::Result WorldManageHandler::request(const Action action, cons
         return Result::NotInWorld;
     }
 
-    if (!send_text(fmt::format("action|wrench\n|netid|{}", net_id))) {
-        return Result::NotConnected;
-    }
-
-    dialogs_.expect(
-        "popup",
-        [this, action, net_id, player_name](const packet::game::DialogInfo& dialog) {
-            return on_popup(dialog, action, net_id, player_name);
-        },
-        DIALOG_TIMEOUT,
-        [this, action, player_name] {
-            send_log(fmt::format("`4Could not {} {}: ``the server did not open their wrench menu", action_name(action), player_name));
+    legit_.run([this, action, net_id, player_name] {
+        if (!send_text(fmt::format("action|wrench\n|netid|{}", net_id))) {
+            send_log(fmt::format("`4Could not {} {}: ``lost connection", action_name(action), player_name));
+            return;
         }
-    );
 
-    spdlog::info("World: wrenched net id {} to {}", net_id, action_name(action));
+        dialogs_.expect(
+            "popup",
+            [this, action, net_id, player_name](const packet::game::DialogInfo& dialog) {
+                return on_popup(dialog, action, net_id, player_name);
+            },
+            DIALOG_TIMEOUT,
+            [this, action, player_name] {
+                send_log(fmt::format("`4Could not {} {}: ``the server did not open their wrench menu", action_name(action), player_name));
+            }
+        );
+
+        spdlog::info("World: wrenched net id {} to {}", net_id, action_name(action));
+    });
     return Result::Sent;
 }
 
@@ -87,11 +91,12 @@ bool WorldManageHandler::on_popup(
         return true;
     }
 
-    const auto reply{ packet::game::make_dialog_return(dialog, { { "buttonClicked", std::string{ button } } }) };
-    if (!send_text(reply)) {
-        send_log(fmt::format("`4Could not {} {}: ``lost connection", action_name(action), player_name));
-    }
-
+    // The menu is taken (hidden) now; the click goes on its turn.
+    legit_.run([this, reply = packet::game::make_dialog_return(dialog, { { "buttonClicked", std::string{ button } } }), action, player_name] {
+        if (!send_text(reply)) {
+            send_log(fmt::format("`4Could not {} {}: ``lost connection", action_name(action), player_name));
+        }
+    });
     return true;
 }
 

@@ -62,6 +62,10 @@ public:
         bool antipunch{ false };
         bool zoom_out{ false };
         float zoom_level{ 0.15f };
+        // Legit mode: random gap between the proxy's own actions (see LegitManager).
+        bool legit_mode{ true };
+        int legit_min_delay_ms{ 80 };
+        int legit_max_delay_ms{ 250 };
         // Snowball, Freeze Wand, Mud Glob, Rotten Egg, Egg, Tomato, Water
         // Balloon, Lemon, Love Potion #8, Doppelganger Potion, g-Virus,
         // Psychotic Bunny, War Balloons, Ghost-In-A-Jar, Mind-Ghost-In-A-Jar.

@@ -13,11 +13,13 @@ AutoCollectHandler::AutoCollectHandler(
     event::Dispatcher& dispatcher,
     network::Client& client,
     std::shared_ptr<Scheduler> scheduler,
+    LegitManager& legit,
     Config& config
 )
     : dispatcher_{ dispatcher }
     , client_{ client }
     , scheduler_{ std::move(scheduler) }
+    , legit_{ legit }
     , config_{ config }
     , enabled_{ config.get_feature_config().auto_collect }
     , range_{ std::clamp(config.get_feature_config().auto_collect_range, MIN_RANGE, MAX_RANGE) }
@@ -128,6 +130,12 @@ std::size_t AutoCollectHandler::collect_nearby()
 
         if (attempt.count > 0 && now - attempt.last_sent < RETRY_DELAY) {
             continue;
+        }
+
+        // Legit mode: one pickup per turn; the timer comes back for the rest.
+        if (!legit_.try_acquire()) {
+            schedule_pass(std::max(legit_.ready_in(), LEGIT_RETRY));
+            break;
         }
 
         packet::game::ItemActivateObjectRequest request{};

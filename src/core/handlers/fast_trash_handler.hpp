@@ -1,5 +1,6 @@
 #pragma once
 #include "../config.hpp"
+#include "../legit_manager.hpp"
 #include "../../event/event.hpp"
 #include "../../network/client.hpp"
 #include "../../network/server.hpp"
@@ -10,7 +11,7 @@ namespace core::handlers {
 // Locks are never trashed this way; their dialog shows as usual.
 class FastTrashHandler {
 public:
-    FastTrashHandler(event::Dispatcher& dispatcher, network::Client& client, network::Server& server, Config& config);
+    FastTrashHandler(event::Dispatcher& dispatcher, network::Client& client, network::Server& server, LegitManager& legit, Config& config);
 
     FastTrashHandler(const FastTrashHandler&) = delete;
     FastTrashHandler& operator=(const FastTrashHandler&) = delete;
@@ -26,6 +27,7 @@ private:
 
     network::Client& client_;
     network::Server& server_;
+    LegitManager& legit_;
     Config& config_;
 
     event::ScopedHandle handle_;
